@@ -1,0 +1,66 @@
+{
+  "seed": 42,
+  "study_id": "diagnostic_cases",
+  "api": {
+    "total_request_budget": 3000,
+    "per_problem_model_budget": 250,
+    "per_sample_evaluator_budget": 100,
+    "initial_concurrency": 8,
+    "maximum_concurrency": 64,
+    "per_model_concurrency": 2,
+    "timeout_seconds": 90,
+    "retries": 1,
+    "judge_max_tokens": 4096,
+    "suffix_max_tokens": 128,
+    "routes": [
+      "gpt-6-sol",
+      "gpt-6.1-sol",
+      "gpt-5.6-luna",
+      "gpt-5.6-sol",
+      "gemini-3.1-pro-high",
+      "gemini-3.6-flash-high",
+      "gemini-3.8-flash-high",
+      "gemini-3.7-flash-high",
+      "claude-sonnet-4-6",
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-opus-4-8",
+      "claude-haiku-4-5"
+    ]
+  },
+  "gpu": {
+    "allocator_limit_bytes": 66000000000,
+    "process_limit_bytes": 70000000000,
+    "max_cases_per_item": 3,
+    "initial_samples": 5,
+    "models_gpu0": [
+      "strongreject",
+      "llamaguard"
+    ],
+    "models_gpu1": [
+      "harmaug",
+      "harmbench"
+    ]
+  },
+  "search": {
+    "suffix_length": 20,
+    "max_steps": 50,
+    "smoke_steps": 2,
+    "top_k": 256,
+    "candidate_count": 128,
+    "score_batch_size": 16,
+    "candidate_recheck_count": 4,
+    "allow_non_ascii": false,
+    "threshold": 0.5,
+    "epsilon": 1e-06,
+    "native_check_tolerance": 1e-06,
+    "stop_on_flip": true,
+    "performance": {}
+  },
+  "api_search": {
+    "rounds": 3,
+    "batch": 8,
+    "initial_models": 3,
+    "max_cases": 3
+  }
+}

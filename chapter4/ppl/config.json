@@ -1,0 +1,44 @@
+{
+  "study_id": "response_repetition_300_v1",
+  "seed": 42,
+  "rules": [
+    "tail_word",
+    "tail_four_words",
+    "last_sentence"
+  ],
+  "full_repetitions": [
+    1,
+    4,
+    8
+  ],
+  "relative_ppl_drop_effect": 0.1,
+  "separator": "\n\n",
+  "scoring": {
+    "explicit_bos": true,
+    "append_eos": false,
+    "chat_template": false,
+    "batch_size": 1,
+    "cross_entropy_dtype": "float32",
+    "sum_dtype": "python_math_fsum_float64",
+    "mean_nll_agreement_atol": 1e-05,
+    "sliding_window": "first full context window then stride=context_length/2; overlap is context only; each absolute target index 1..N-1 scored once; reset positions within each window",
+    "safety_threshold": null
+  },
+  "models": {
+    "gpt2": {
+      "source": "resources/gpt2_manifest.json",
+      "physical_gpu": 0,
+      "dtype": "float32",
+      "memory_limit_bytes": 2500000000,
+      "expected_context": 1024
+    },
+    "llama2": {
+      "model": "models/Llama-2-7b-chat-hf",
+      "revision": "f5db02db724555f92da89c216ac04704f23d4590",
+      "physical_gpu": 1,
+      "dtype": "float16",
+      "memory_limit_bytes": 32000000000,
+      "expected_context": 4096
+    }
+  }
+}

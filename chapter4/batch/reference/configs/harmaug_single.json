@@ -1,0 +1,21 @@
+{
+  "experiment_kind": "whitebox_suffix_evaluator_robustness",
+  "evaluator": "harmaug",
+  "harmaug_model": "models/HarmAug-Guard",
+  "seed": 42,
+  "threshold": 0.5,
+  "suffix_length": 20,
+  "max_steps": 50,
+  "smoke_steps": 2,
+  "top_k": 256,
+  "candidate_count": 128,
+  "score_batch_size": 64,
+  "candidate_recheck_count": 4,
+  "allow_non_ascii": false,
+  "epsilon": 1e-6,
+  "native_check_tolerance": 1e-6,
+  "context_limit_harmaug": 1024,
+  "max_gpu_memory_gib": 66,
+  "input_policy": "official tokenizer(prompt, response + suffix), no truncation",
+  "response_whitespace_policy": "preserve raw response and suffix exactly"
+}
