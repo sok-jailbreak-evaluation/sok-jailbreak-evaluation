@@ -2,6 +2,8 @@
 
 This source tree accompanies Chapters 4 and 5. It contains the evaluation logic, transformations, prompts, model settings and reporting code. Supply datasets, selected attack attempts, model snapshots and API access separately. Run experiments in a private working copy. Generated files can contain the full input and model response.
 
+The [online supplement](online_supplement.pdf) contains the study protocols, complete case records and detailed result tables.
+
 ## Chapter 4
 
 | Question | Source and readout |
@@ -70,7 +72,3 @@ The StrongREJECT native consistency check imports `cached_models` and `strongrej
 The source includes extracts of the public evaluator implementations identified in the code for StrongREJECT, HarmBench, HarmAug, GPTFuzzer, Llama Guard, llm-attacks, BOOST, PARDEN, the n-gram constraint, TriPlay-RL, and the published attack generators. The upstream Controlled Release license is included under `chapter5/generation/LICENSE`. Public reference credits identify the originating methods.
 
 To reproduce the native HarmScore aggregation, score the same attempt list with `comparators/harmscore/run.py branch` for each released head, then use `run.py combine` on both outputs. It takes the geometric mean for each valid response; the group statistic is the arithmetic mean of valid response scores. The two-stage classifier and the five-aspect assessment have separate outputs.
-
-## Reported evaluation data
-
-`aspect_results/records.jsonl` provides the 8,320 selected-response records for the 5 reported aspects. `summary.json` and `summary.csv` retain the per-method counts for both targets. `summarize.py` reproduces these files without model calls. The published readouts are G (L1.2), H (L2.2), R (L2.3), A (L2.4) and D (L3.1). Necessary-condition records are supporting evidence within the evaluation process.
