@@ -40,8 +40,8 @@ Start from one selected attack attempt per target model, attack method and goal.
 From `chapter5/`, run `python prepare_inputs.py /path/to/selected.jsonl`. Each JSONL object supplies `target`, `method`, `goal_id`, `goal`, `attack_prompt`, `attack_prompt_scope` and `response`. Supply null for missing text. For a single user message use `single_submitted_user_turn`; for recorded multi-turn inputs preserve the JSON string with the named submitted user turns and separate context. The builder checks duplicate slots and conflicting goals, hashes exact text, and creates a goal-only input independently of the response records.
 
 1. **Align aspects and mechanisms.** Prepare goal specifications and role plans. Compute goal-conditioned evidence, native decisions, static checks and response properties on the same inputs.
-2. **Verify judgments against evidence.** Compose the evidence, route disagreements, check necessary conditions and apply the verification protocol. `final_conditions_v2.py` records task passes before and after condition verification.
-3. **Aggregate and compare.** Score the submitted prompt and the generation-prefix evidence at their respective units. `finish_five_aspects.py` groups five separate numerators and their planned denominator by model and method. G measures goal preservation (L1.2), H harmful help (L2.2), R relevance (L2.3), A complete assistance (L2.4), and D late onset of harmful help (L3.1). Task-condition passes are also available separately through `verification_counts.py`.
+2. **Verify judgments against evidence.** Compose the evidence, route disagreements, check necessary conditions and apply the verification protocol. `final_conditions_v2.py` retains condition evidence for the assessment and review of response aspects.
+3. **Aggregate and compare.** Score the submitted prompt and the generation-prefix evidence at their respective units. `finish_five_aspects.py` groups five separate numerators and their planned denominator by model and method. G measures goal preservation (L1.2), H harmful help (L2.2), R relevance (L2.3), A complete assistance (L2.4), and D late onset of harmful help (L3.1).
 
 Example sequence from `chapter5/`, after preparing the inputs and installing models in `models/`:
 
@@ -59,7 +59,6 @@ python final_conditions_v2.py
 python input_and_process.py G
 python input_and_process.py D new_final.json
 python finish_five_aspects.py
-python verification_counts.py final_by_slot.jsonl
 ```
 
 Set the API concurrency and request budgets explicitly for the chosen cohort. Use a private `.env` in the working directory containing `OPENAI_BASE_URL` and `OPENAI_API_KEY`. The account must support the configured model names. Use the documented evaluator-specific output scale for comparisons. The comparator implementations include prompted and fine-tuned StrongREJECT, native classifiers, keyword checks, token counts, PPL, PARDEN and HarmScore. The additional comparator folders contain the Protect AI rejection classifier (right truncation to 512 tokens including special tokens), the Llama Guard 3 8B native decoder, and the TriPlay-RL semantic judge of the submitted prompt. The model directory for the Protect AI head is supplied through `REFUSAL_MODEL`, and the TriPlay-RL directory through `SEMANTIC_MODEL`. These comparator scripts have separate resource requirements from the main evidence pipeline.
@@ -73,3 +72,9 @@ The StrongREJECT native consistency check imports `cached_models` and `strongrej
 The source includes extracts of the public evaluator implementations identified in the code for StrongREJECT, HarmBench, HarmAug, GPTFuzzer, Llama Guard, llm-attacks, BOOST, PARDEN, the n-gram constraint, TriPlay-RL, and the published attack generators. The upstream Controlled Release license is included under `chapter5/generation/LICENSE`. Public reference credits identify the originating methods.
 
 To reproduce the native HarmScore aggregation, score the same attempt list with `comparators/harmscore/run.py branch` for each released head, then use `run.py combine` on both outputs. It takes the geometric mean for each valid response; the group statistic is the arithmetic mean of valid response scores. The two-stage classifier and the five-aspect assessment have separate outputs.
+
+## Reported data and human validation
+
+`aspect_results/records.jsonl` provides the 8,320 selected-response records for the 5 reported aspects. `summary.json` and `summary.csv` retain the per-method counts for both targets. `summarize.py` reproduces these files without model calls. The published readouts are G (L1.2), H (L2.2), R (L2.3), A (L2.4) and D (L3.1). Necessary-condition records are supporting evidence within the evaluation process.
+
+`human_validation/labels.csv` provides the 300 aligned H, A and R labels from AA, BB, CC and the evaluator, with majority labels. `compute_agreement.py` reproduces the agreement statistics. Annotators work independently with evaluator outputs hidden, the same rules and separately shuffled presentation orders.

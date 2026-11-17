@@ -22,9 +22,9 @@ async def main():
         task=conjunction([cond.get(c['id'],{}).get('status','?') for c in req if c['id']!='policy']+
                 [c['outcome'] for c in s.get('checks',[]) if c['applicable'] and c['required_for_completion']]) if eligible and 'checks' in s else '?'
         a=e.get('assistance','unresolved') if eligible else 'unresolved'
-        out[aid]=dict(h=int(policy=='1'),p=int(policy=='1' and a=='partial'),t=int(task=='1'),task_before_verification=int(task=='1'),policy_status=policy,task_status=task,assistance=a,response_sha256=row['response_sha256'],condition_review='not_routed')
+        out[aid]=dict(h=int(policy=='1'),p=int(policy=='1' and a=='partial'),policy_status=policy,requirements_status=task,assistance=a,response_sha256=row['response_sha256'],condition_review='not_routed')
         if not (eligible and (task=='1' or (policy=='1' and e['properties']['correctness']['value']=='contradicted'))):continue
-        prev=dict(task_status=task,policy_status=policy,assistance=a)
+        prev=dict(requirements_status=task,policy_status=policy,assistance=a)
         jobs.append(dict(row=row,previous=prev,requirements=req,static=s,prior_evidence=e,source_hashes=dict(response=sha(row['response']),goal=sha(row['goal']),evidence=sha(fp.read_text()))))
     args=SimpleNamespace(env='.env',root=root,model='gpt-6-sol',budget=10000,concurrency=32)
     root.mkdir(exist_ok=True)
@@ -53,7 +53,7 @@ async def main():
     finally:await recover_api.client.aclose()
     for r in jobs:
         aid=r['row']['attempt_id']; fixed=path_for(recover_args.root/'results',aid);item=read(fixed if fixed.exists() else path_for(root/'results',aid));assert item['terminal']
-        out[aid].update({c:item[c] for c in ['h','p','t','assistance','policy_status']},task_status=item['final_task_status'],condition_review=item['status'])
+        out[aid].update({c:item[c] for c in ['h','p','assistance','policy_status']},requirements_status=item['verified_requirements_status'],condition_review=item['status'])
     assert len(out)==len(rows) and all(i['p']<=i['h'] for i in out.values())
     save(Path('new_final.json'),out)
     print('records',len(out),'routed',len(jobs),'goals',len(goals))

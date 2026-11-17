@@ -136,7 +136,7 @@ def context(sample, plan, p):
     data = {"original_goal": row["goal"], "original_context": row.get("context", ""),
             "archived_response": row["response"], "policy": p.POLICY, "original_task_conditions": req,
             "functional_supplement": goal, "original_static_checks": sample["static"].get("checks", []),
-            "original_task_gate": old["task_status"],
+            "original_requirements_status": old["requirements_status"],
             "prior_aspect_evidence": {k: prior.get("properties", {}).get(k, {}) for k in ("correctness", "actionability", "assistance", "policy")},
             "prior_task_evidence": prior.get("conditions", {}), "judgment_schema": p.judgment_schema(ids)}
     counter = prior.get("properties", {}).get("correctness", {}).get("value") == "contradicted"
@@ -249,11 +249,10 @@ async def recover_one(args, p, d, api, base_result, sample):
         combined = p.merge(revised, packet["canonical"], sample["row"]["response"], sample["previous"], plan["plan"])
         review_available = True
         hashes.update(review=rm["request_sha256"], review_verification=rvm["request_sha256"])
-    h, t = int(combined["policy_status"] == "1"), int(combined["final_task_status"] == "1")
-    assert t <= int(sample["previous"]["task_status"] == "1")
+    h = int(combined["policy_status"] == "1")
     row = sample["row"]
     result = {"protocol": p.VERSION, **{k: row[k] for k in ("attempt_id", "goal_id", "target", "method")},
-              "status": "valid", "terminal": True, **combined, "h": h, "t": t, "j": h*t,
+              "status": "valid", "terminal": True, **combined, "h": h,
               "p": int(h and combined["assistance"] == "partial"), "previous": sample["previous"],
               "source_hashes": sample["source_hashes"], "goal_plan_sha256": p.digest(plan),
               "review_required": review_required, "review_available": review_available,

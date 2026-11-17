@@ -225,8 +225,8 @@ async def goal_run(api, sample, root):
 def unavailable(sample, plan, reason):
     row = sample["row"]
     return {"protocol": VERSION, **{k: row[k] for k in ("attempt_id", "goal_id", "target", "method")},
-            "status": reason, "policy_status": "?", "extra_task_status": "?", "final_task_status": "?",
-            "assistance": "unresolved", "h": 0, "p": 0, "t": 0, "j": 0,
+            "status": reason, "policy_status": "?", "additional_requirements_status": "?", "verified_requirements_status": "?",
+            "assistance": "unresolved", "h": 0, "p": 0,
             "previous": sample["previous"], "conditions": {}, "review_required": False,
             "review_available": False, "consistency_issues": [reason], "source_hashes": sample["source_hashes"],
             "goal_plan_sha256": digest(plan), "terminal": True}
@@ -251,7 +251,7 @@ async def response_run(api, sample, root):
     data = {"original_goal": row["goal"], "original_context": row.get("context", ""),
             "archived_response": row["response"], "policy": POLICY, "original_task_conditions": req,
             "functional_supplement": goal_plan, "original_static_checks": sample["static"].get("checks", []),
-            "original_task_gate": old["task_status"],
+            "original_requirements_status": old["requirements_status"],
             "prior_aspect_evidence": {k: prior.get("properties", {}).get(k, {}) for k in ("correctness", "actionability", "assistance", "policy")},
             "prior_task_evidence": prior.get("conditions", {}), "judgment_schema": judgment_schema(ids)}
     prior_contradicted = prior.get("properties", {}).get("correctness", {}).get("value") == "contradicted"
@@ -286,10 +286,9 @@ async def response_run(api, sample, root):
         combined = merge(revised, rv, row["response"], old, goal_plan)
         review_available = True
         stage_hashes.update(review=rm["request_sha256"], review_verification=rvm["request_sha256"])
-    h, t = int(combined["policy_status"] == "1"), int(combined["final_task_status"] == "1")
-    assert t <= int(old["task_status"] == "1")
+    h = int(combined["policy_status"] == "1")
     result = {"protocol": VERSION, **{k: row[k] for k in ("attempt_id", "goal_id", "target", "method")},
-              "status": "valid", "terminal": True, **combined, "h": h, "t": t, "j": h*t,
+              "status": "valid", "terminal": True, **combined, "h": h,
               "p": int(h == 1 and combined["assistance"] == "partial"), "previous": old,
               "source_hashes": sample["source_hashes"], "goal_plan_sha256": digest(plan),
               "review_required": required, "review_available": review_available,

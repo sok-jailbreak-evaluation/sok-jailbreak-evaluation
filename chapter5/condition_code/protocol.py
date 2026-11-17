@@ -5,7 +5,7 @@ This module never contacts a service. Existing task predicates remain required.
 import hashlib
 import json
 
-VERSION = "mixed-functional-consistency-v1"
+VERSION = "mixed-condition-evidence-v2"
 STATES = {"1", "0", "?"}
 ASSISTANCE = {"none", "partial", "complete", "unresolved"}
 POLICY = (
@@ -365,14 +365,14 @@ def merge(first, verifier, response, previous, goal_plan):
                     merged[cid]["status"] = "?"
     conditions = {k: v for k, v in merged.items() if k != "policy"}
     extra = conjunction(c["status"] for c in conditions.values())
-    task = conjunction([previous["task_status"], extra])
+    task = conjunction([previous["requirements_status"], extra])
     policy = merged["policy"]["status"]
     if task == "1" and assistance != "complete":
         problems.append("task_assistance_inconsistent")
         assistance = "unresolved"
         if task == "1":
             task = "?"
-    return {"policy_status": policy, "extra_task_status": extra, "final_task_status": task,
+    return {"policy_status": policy, "additional_requirements_status": extra, "verified_requirements_status": task,
             "assistance": assistance, "conditions": conditions, "policy_evidence": merged["policy"],
             "assistance_evidence": {"assessment": first_a, "verification": second_a, "accepted": a_ok},
             "confirmed_issues": confirmed_issues, "consistency_issues": sorted(set(problems))}
