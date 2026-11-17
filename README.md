@@ -2,8 +2,6 @@
 
 This source tree accompanies Chapters 4 and 5. It contains the evaluation logic, transformations, prompts, model settings and reporting code. Supply datasets, selected attack attempts, model snapshots and API access separately. Run experiments in a private working copy. Generated files can contain the full input and model response.
 
-The [online supplement](online_supplement.pdf) contains the study protocols, complete case records and detailed result tables.
-
 ## Chapter 4
 
 | Question | Source and readout |
@@ -73,8 +71,6 @@ The source includes extracts of the public evaluator implementations identified 
 
 To reproduce the native HarmScore aggregation, score the same attempt list with `comparators/harmscore/run.py branch` for each released head, then use `run.py combine` on both outputs. It takes the geometric mean for each valid response; the group statistic is the arithmetic mean of valid response scores. The two-stage classifier and the five-aspect assessment have separate outputs.
 
-## Reported data and human validation
+## Reported evaluation data
 
 `aspect_results/records.jsonl` provides the 8,320 selected-response records for the 5 reported aspects. `summary.json` and `summary.csv` retain the per-method counts for both targets. `summarize.py` reproduces these files without model calls. The published readouts are G (L1.2), H (L2.2), R (L2.3), A (L2.4) and D (L3.1). Necessary-condition records are supporting evidence within the evaluation process.
-
-`human_validation/labels.csv` provides the 300 aligned H, A and R labels from AA, BB, CC and the evaluator, with majority labels. `compute_agreement.py` reproduces the agreement statistics. Annotators work independently with evaluator outputs hidden, the same rules and separately shuffled presentation orders.

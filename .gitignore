@@ -140,4 +140,11 @@
 !/chapter5/prepare_inputs.py
 !/chapter5/verification_counts.py
 !/requirements.txt
-!/online_supplement.pdf
+
+# Private human annotation artifacts must not be published.
+/human_validation/
+**/human_validation/**
+**/*annotat*
+**/*agreement*
+**/*标注*
+/online_supplement.pdf
