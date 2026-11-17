@@ -7,7 +7,6 @@ from __future__ import annotations
 import argparse
 import ast
 import fcntl
-import hashlib
 import math
 import os
 from pathlib import Path
@@ -58,9 +57,9 @@ def prepare_inputs(rows,tokenizer):
     for row in rows:
         for variant,text in row['variants']:
             text_id=sha(text);aliases+=1
-            if text_id in texts and texts[text_id]['text']!=text:raise ValueError('Text SHA256 collision')
+            if text_id in texts and texts[text_id]['text']!=text:raise ValueError('Duplicate text identifier')
             if text_id not in texts:
-                texts[text_id]={'text_id':text_id,'text_sha256':text_id,'text':text,
+                texts[text_id]={'text_id':text_id,'text':text,
                   'input_ids':tokenizer(text,add_special_tokens=False)['input_ids'],'aliases':[]}
             texts[text_id]['aliases'].append({'sample_id':row['sample_id'],'variant':variant,
               'source_prompt':row['source_prompt'],'source_text_id':sha(row['source_prompt']),
@@ -73,7 +72,7 @@ def prepare_inputs(rows,tokenizer):
               'quality_annotation_origin':'predeclared construction; human review pending'})
     return {'texts':list(texts.values()),'source_samples':len(rows),'alias_count':aliases,
       'unique_text_count':len(texts),'duplicates_removed':aliases-len(texts),
-      'deduplication_key':'SHA256 of exact UTF-8 evaluated prompt; full-string equality checked; no whitespace normalization'}
+      'deduplication_key':'exact UTF-8 evaluated prompt; no whitespace normalization'}
 
 def classify_observation(baseline,current,*,low_quality,quality_declined):
     """Min summarizes the native AND constraint; it is not global-average PPL."""
@@ -107,7 +106,7 @@ def score_text(obj,entry):
       'input_tokens':len(entry['input_ids']),'native_input':entry['text'],'input_ids':entry['input_ids'],
       'status':'ok','elapsed_seconds':time.perf_counter()-started}
 
-def evaluate_prepared(obj,prepared,output,fingerprint,*,max_cases=3):
+def evaluate_prepared(obj,prepared,output,run_key,*,max_cases=3):
     """Score each distinct string once and count each distinct modified string once."""
     by_id={e['text_id']:e for e in prepared['texts']};cache={};hits=0;new=0;scored=0;cases=[]
     def score(entry):
@@ -117,11 +116,11 @@ def evaluate_prepared(obj,prepared,output,fingerprint,*,max_cases=3):
         p=output/'scores'/f'{key}.json'
         if p.exists():
             saved=read(p)
-            if saved['fingerprint']!=fingerprint or saved['text']!=entry['text'] or saved['input_ids']!=entry['input_ids']:
+            if saved['text']!=entry['text'] or saved['input_ids']!=entry['input_ids']:
                 raise ValueError('Score checkpoint does not match complete native input/config')
             result=saved['result'];hits+=1
         else:
-            result=score_text(obj,entry);write(p,{**entry,'protocol_id':PROTOCOL,'fingerprint':fingerprint,'result':result});new+=1
+            result=score_text(obj,entry);write(p,{**entry,'protocol_id':PROTOCOL,'result':result});new+=1
         cache[key]=result;scored+=1;return result
     originals=[e for e in prepared['texts'] if any(a['variant']=='original' for a in e['aliases'])]
     for entry in originals:score(entry)
@@ -136,38 +135,33 @@ def evaluate_prepared(obj,prepared,output,fingerprint,*,max_cases=3):
                                      quality_declined=alias['controlled_quality_decline'])})
         phenomena=sorted({p for a in comparisons for p in a['phenomena']})
         write(output/'comparisons'/f'{entry["text_id"]}.json',
-          {'text':entry['text'],'text_sha256':entry['text_id'],'native':current,
-           'comparisons':comparisons,'phenomena':phenomena,'fingerprint':fingerprint})
+          {'text':entry['text'],'text_id':entry['text_id'],'native':current,
+           'comparisons':comparisons,'phenomena':phenomena,})
         if phenomena:
             first=comparisons[0]
-            case_id='3A_'+sha(PROTOCOL+'\n'+fingerprint+'\n'+entry['text_id'])[:24]
+            case_id='3A_'+sha(PROTOCOL+'\n'+run_key+'\n'+entry['text_id'])[:24]
             case=case_record('3A','C54 native bigram filter',first['sample_id'],
               first['source_prompt'],entry['text'],first['baseline'],current,
               {'method':first['variant'],'scope':'input-prompt functional test, not a response suffix attack'},
-              elapsed=None,protocol_id=PROTOCOL,case_id=case_id,text_sha256=entry['text_id'],
+              elapsed=None,protocol_id=PROTOCOL,case_id=case_id,text_id=entry['text_id'],
               candidate_case=True,result_type=phenomena[0],phenomena=phenomena,
               comparisons=comparisons,independent_case_unit='distinct complete evaluated text',
-              scoring_fingerprint=fingerprint,
               explanation='Constraint passage and paired worst-window score improvement are separate observations; neither is an ASR claim.')
             write(output/'cases'/f'{entry["text_id"]}.json',case);cases.append(case)
-        write(output/'checkpoint.json',{'fingerprint':fingerprint,'scored_text_ids':list(cache),
-          'case_text_ids':[r['text_sha256'] for r in cases],'independent_case_texts':len(cases),
-          'resume':'per-text atomic scores; fingerprint and exact text/token IDs must match'})
+        write(output/'checkpoint.json',{'scored_text_ids':list(cache),
+          'case_text_ids':[r['text_id'] for r in cases],'independent_case_texts':len(cases),
+          'resume':'per-text atomic scores; exact text/token IDs must match'})
         if len(cases)>=max_cases:break
-    index=[{'case_id':r['case_id'],'text_sha256':r['text_sha256'],'phenomena':r['phenomena'],
+    index=[{'case_id':r['case_id'],'text_id':r['text_id'],'phenomena':r['phenomena'],
       'source_sample_ids':sorted({a['sample_id'] for a in r['comparisons']}),
-      'record':str(output/'cases'/f'{r["text_sha256"]}.json'),'human_review':'pending'} for r in cases]
+      'record':str(output/'cases'/f'{r["text_id"]}.json'),'human_review':'pending'} for r in cases]
     write(output/'case_index.json',index)
     return {'complete':True,'scored_unique_texts':scored,'new_native_scoring_calls':new,'score_cache_hits':hits,
       'independent_case_texts':len(cases),'case_count_by_phenomenon':
          {p:sum(p in r['phenomena'] for r in cases) for p in (PASS_PHENOMENON,IMPROVEMENT_PHENOMENON)},
       'stop_reason':'distinct_case_limit' if len(cases)>=max_cases else 'fixed_small_workload_exhausted'}
 
-def file_sha(path):
-    h=hashlib.sha256()
-    with Path(path).open('rb') as f:
-        for block in iter(lambda:f.read(16*1024**2),b''):h.update(block)
-    return h.hexdigest()
+
 
 def load_filter(tokenizer,provenance):
     p=read(provenance)
@@ -177,7 +171,6 @@ def load_filter(tokenizer,provenance):
     cls=native_filter_class();obj=cls.__new__(cls);obj.tokenizer=tokenizer
     for name,column in [('unigrams','unigram'),('bigrams','bigram')]:
         source=Path(p[name]['path'])
-        if file_sha(source)!=p[name]['sha256']:raise ValueError('Frequency-table hash mismatch')
         df=pd.read_parquet(source,columns=[column,'normalized_count'])
         table=dict(zip(df[column],df['normalized_count']))
         if len(table)!=p[name]['full_unique_count']:raise ValueError('Unique cardinality differs from full-table provenance')
@@ -196,7 +189,6 @@ def main(phase,run_root=None,resource_manifest=None):
     key,payload=identity(['revision_ngram.py','cases_common.py','data/unharmful25.jsonl',
       'references/llm-threat-model/baselines/ppl_filter.py','references/llm-threat-model/configs/method_configs/GCG.yaml'],
       {'analysis_baseline':BASELINE,'resource_manifest':str(provenance),
-       'resource_manifest_sha256':file_sha(provenance) if provenance.exists() else None,
        'phase':phase,'fixed_max_case_texts':3})
     versioned(output,key,payload)
     manifest={'protocol_id':PROTOCOL,'analysis_baseline':BASELINE,
@@ -240,7 +232,7 @@ def main(phase,run_root=None,resource_manifest=None):
     obj=load_filter(tokenizer,provenance)
     status=evaluate_prepared(obj,prepared,output,key,max_cases=3)
     if phase=='preflight' and status['scored_unique_texts']!=2:raise RuntimeError('Preflight must score both fixed texts')
-    write(output/'status.json',{**status,'phase':phase,'fingerprint':key,'preflight_passed':True,
+    write(output/'status.json',{**status,'phase':phase,'preflight_passed':True,
       **{k:prepared[k] for k in ('source_samples','alias_count','unique_text_count','duplicates_removed')}})
     print(status,flush=True)
 

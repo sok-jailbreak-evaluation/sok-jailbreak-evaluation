@@ -42,7 +42,7 @@ def input_snapshot(adapter,sample,suffix):
         native_input={'rendered_text':prefix+suffix+tail,'input_ids':scoring_ids}
     return {'native':native_input,'scoring_input_ids':scoring_ids,
         'original_response_preserved':True,'input_truncated':False,
-        'original_response_sha256':sha(sample['response']),'suffix':suffix}
+        'suffix':suffix}
 
 
 class NativeMixin:

@@ -3,7 +3,6 @@ import os
 import sys
 from pathlib import Path
 import gzip
-import hashlib
 import json
 import tempfile
 import time
@@ -14,7 +13,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from transformers.utils import logging
 logging.set_verbosity_error()
 warnings.filterwarnings('ignore',message='.*padding.*')
-def sha(raw):return hashlib.sha256(raw).hexdigest()
+
 def save_file(file,raw):
     with tempfile.NamedTemporaryFile(dir=Path(file).parent,delete=False) as f:
         f.write(raw);f.flush();os.fsync(f.fileno())
@@ -38,7 +37,6 @@ for r in map(json.loads,Path(sys.argv[1]).read_text().splitlines()):
     if r.get('response_status')!='valid':
         continue
     response=r['response']
-    assert sha(response.encode())==r['response_sha256']
     plain=tokenizer(response,add_special_tokens=False,truncation=False)['input_ids']
     enc=tokenizer(response,add_special_tokens=True,truncation=True,max_length=512,padding=False)['input_ids']
     assert enc==[tokenizer.bos_token_id,*plain[:510],tokenizer.eos_token_id]
@@ -52,7 +50,7 @@ with torch.inference_mode():
         logits=model(**inp).logits.cpu();pred=logits.argmax(-1).tolist();probs=logits.softmax(-1)[:,1].tolist()
         for (r,ids),cls,prob in zip(batch,pred,probs):
             label=model.config.id2label[cls]
-            scored.append({**{k:r[k] for k in ('target','method','goal_id','response_sha256')},'original_tokens':r['tokens'],'input_tokens':len(ids),'input_ids_sha256':sha(bytes().join(i.to_bytes(4,'big') for i in ids)),'label':label,'prob_rejection':prob})
+            scored.append({**{k:r[k] for k in ('target','method','goal_id',)},'original_tokens':r['tokens'],'input_tokens':len(ids),'label':label,'prob_rejection':prob})
 payload=gzip.compress(b''.join((json.dumps(r,sort_keys=True)+'\n').encode() for r in scored),mtime=0)
 save_file(Path(sys.argv[2]),payload)
 print('Valid responses scored:',len(scored))

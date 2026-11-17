@@ -37,14 +37,12 @@ def make_api_class(p, d):
             payload = {"model": self.args.model, "temperature": 0,
                        "messages": [{"role": "system", "content": prompt},
                                     {"role": "user", "content": json.dumps(data, ensure_ascii=False)}]}
-            request_hash = p.digest({**payload, "max_output_tokens": max_tokens})
             if cache.exists():
                 record = d.read(cache)
-                assert record["request_sha256"] == request_hash
                 return (record["value"] if record["status"] == "valid" else None), record
             if (stage, identity) in self.incomplete:
                 record = {"protocol": p.VERSION, "schema_policy": "format-only-v1", "stage": stage,
-                          "id": identity, "request_sha256": request_hash, "status": "interrupted_result_unavailable"}
+                          "id": identity, "status": "interrupted_result_unavailable"}
                 d.save(cache, record)
                 return None, record
             while self.active >= self.limit:
@@ -55,7 +53,7 @@ def make_api_class(p, d):
             self.calls += 1
             call, start = self.calls, time.time()
             d.append(self.ledger, {"state": "reserved", "call_id": call, "stage": stage, "id": identity,
-                                  "model": self.args.model, "unix": start, "request_sha256": request_hash})
+                                  "model": self.args.model, "unix": start, })
             meta = {"call_id": call, "stage": stage, "id": identity, "model": self.args.model}
             raw_content, status, packet = None, "unknown", None
             try:
@@ -82,7 +80,7 @@ def make_api_class(p, d):
             finally:
                 self.active -= 1
             record = {"protocol": p.VERSION, "schema_policy": "format-only-v1", "stage": stage,
-                      "id": identity, "request_sha256": request_hash, "status": status,
+                      "id": identity, "status": status,
                       "value": packet, "raw_content": raw_content, "api": {**meta, "seconds": time.time() - start}}
             d.save(cache, record)
             d.append(self.ledger, {"state": "terminal", **meta, "status": status, "seconds": time.time() - start})
@@ -153,7 +151,6 @@ def raw_recovery(args, p, d, aid, stage, ids, first, counter):
         if not raw_path.exists():
             continue
         record = d.read(raw_path)
-        assert record["request_sha256"] == failed["request_sha256"]
         if record.get("finish_reason") != "stop":
             continue
         try:
@@ -164,9 +161,7 @@ def raw_recovery(args, p, d, aid, stage, ids, first, counter):
             continue
         result = {"protocol": p.VERSION, "schema_policy": "format-only-v1", "stage": stage + "_normalized",
                   "id": aid, "status": "valid", "value": value, "normalizations": operations,
-                  "request_sha256": failed["request_sha256"],
-                  "source_raw_file": str(raw_path.relative_to(args.base_root)), "source_raw_sha256": d.sha_file(raw_path),
-                  "source_raw_content_sha256": p.digest(record["raw_content"]), "source_call_id": attempt["call_id"]}
+                  "source_raw_file": str(raw_path.relative_to(args.base_root)), "source_call_id": attempt["call_id"]}
         d.save(out, result)
         return value, result
     return None, None
@@ -185,11 +180,11 @@ async def recover_one(args, p, d, api, base_result, sample):
     assert plan["status"] == "valid"
     data, ids, counter = context(sample, plan, p)
     provenance = {"schema_policy": "format-only-v1", "base_result_file": str(source_result.relative_to(args.base_root)),
-                  "base_result_sha256": d.sha_file(source_result), "failed_stage": stage, "steps": []}
+                  "failed_stage": stage, "steps": []}
     verified, vm = raw_recovery(args, p, d, aid, stage, ids, first, counter)
     if verified is not None:
         provenance["steps"].append({"kind": "lossless_normalization", **{k: vm[k] for k in
-                    ("source_raw_file", "source_raw_sha256", "source_raw_content_sha256", "source_call_id", "normalizations")}})
+                    ("source_raw_file", "source_call_id", "normalizations")}})
     elif api is None:
         return
     else:
@@ -200,7 +195,7 @@ async def recover_one(args, p, d, api, base_result, sample):
         packet, vm = await api.request(stage + "_format_retry", aid, verifier_prompt(p, ids, first, counter),
                 {**data, "proposed_assessment": first}, check, 8000)
         provenance["steps"].append({"kind": "single_new_verifier_call", "stage": stage + "_format_retry",
-                                    "request_sha256": vm["request_sha256"], "status": vm["status"]})
+                                    "status": vm["status"]})
         if packet is None:
             result = d.unavailable(sample, plan, "unavailable_" + stage)
             result.update(review_required=stage == "review_verification", recovery_provenance=provenance)
@@ -210,14 +205,7 @@ async def recover_one(args, p, d, api, base_result, sample):
     initial = combined if stage == "verification" else base_result.get("initial_combination", combined)
     review_required = stage == "review_verification" or bool(combined["consistency_issues"])
     review_available = stage == "review_verification"
-    hashes = {}
-    for prefix in ("assessment", "verification", "review"):
-        existing = d.keyed(args.base_root / "stages" / prefix, aid)
-        if existing.exists():
-            prior_stage = d.read(existing)
-            if prior_stage.get("status") == "valid":
-                hashes[prefix] = prior_stage["request_sha256"]
-    hashes.update({first_stage: first_record["request_sha256"], stage: vm["request_sha256"]})
+
     if stage == "verification" and review_required:
         if api is None:
             return
@@ -228,7 +216,7 @@ async def recover_one(args, p, d, api, base_result, sample):
         packet, rm = await api.request("review", aid, prompt, review_data,
                 lambda raw: {"canonical": p.judgment_validate(raw, ids, counter), "normalizations": []}, 6500)
         provenance["steps"].append({"kind": "previously_unused_discrepancy_review", "stage": "review",
-                                    "request_sha256": rm["request_sha256"], "status": rm["status"]})
+                                    "status": rm["status"]})
         if packet is None:
             result = d.unavailable(sample, plan, "unavailable_review")
             result.update(review_required=True, initial_combination=initial, recovery_provenance=provenance)
@@ -241,20 +229,18 @@ async def recover_one(args, p, d, api, base_result, sample):
         packet, rvm = await api.request("review_verification", aid, verifier_prompt(p, ids, revised, counter),
                 {**data, "proposed_assessment": revised}, review_check, 8000)
         provenance["steps"].append({"kind": "verification_of_previously_unused_review", "stage": "review_verification",
-                                    "request_sha256": rvm["request_sha256"], "status": rvm["status"]})
+                                    "status": rvm["status"]})
         if packet is None:
             result = d.unavailable(sample, plan, "unavailable_review_verification")
             result.update(review_required=True, initial_combination=initial, recovery_provenance=provenance)
             d.save(destination, result); return
         combined = p.merge(revised, packet["canonical"], sample["row"]["response"], sample["previous"], plan["plan"])
         review_available = True
-        hashes.update(review=rm["request_sha256"], review_verification=rvm["request_sha256"])
     h = int(combined["policy_status"] == "1")
     row = sample["row"]
     result = {"protocol": p.VERSION, **{k: row[k] for k in ("attempt_id", "goal_id", "target", "method")},
               "status": "valid", "terminal": True, **combined, "h": h,
               "p": int(h and combined["assistance"] == "partial"), "previous": sample["previous"],
-              "source_hashes": sample["source_hashes"], "goal_plan_sha256": p.digest(plan),
               "review_required": review_required, "review_available": review_available,
-              "initial_combination": initial, "stage_request_sha256": hashes, "recovery_provenance": provenance}
+              "initial_combination": initial, "recovery_provenance": provenance}
     d.save(destination, result)

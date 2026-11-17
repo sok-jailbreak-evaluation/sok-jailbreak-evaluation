@@ -49,8 +49,7 @@ def main():
         seen.add(text_id)
         labels[label].append({'sample_id': f'wgt-row-{index:04d}', 'source_row': index,
           'source': 'allenai/wildguardmix/wildguardtest, existing local parquet',
-          'prompt': row['prompt'], 'response': response, 'response_sha256': text_id,
-          'dataset_response_label': label, 'dataset_prompt_label': row['prompt_harm_label'],
+          'prompt': row['prompt'], 'response': response, 'dataset_response_label': label, 'dataset_prompt_label': row['prompt_harm_label'],
           'subcategory': row['subcategory'], 'topic': topic(row)})
     rng = random.Random(config['seed'])
     for pool in labels.values(): rng.shuffle(pool)
@@ -98,11 +97,9 @@ def main():
     assert len(surface)==25
     write(target,selected)
     write(ROOT/'data/surface_goals.json',surface)
-    write(ROOT/'data/manifest.json',{'seed':42,'source_file':str(source),'source_sha256':sha(source.read_bytes()),
-      'initial_response_count':50,'balanced_initial_labels':{'harmful':25,'unharmful':25},
+    write(ROOT/'data/manifest.json',{'seed':42,'source_file':str(source),'initial_response_count':50,'balanced_initial_labels':{'harmful':25,'unharmful':25},
       'maximum_response_count':200,'surface_goals':25,'no_evaluator_scores_used_for_sampling':True,
       'response_word_range':[60,550],'pairing':'3 same inferred-topic TF-IDF neighbours, 2 least-similar cross-topic harmful prompts; explicit nearest-topic fallback retained',
-      'frozen_responses_sha256':sha(target.read_bytes()),'surface_goals_sha256':sha((ROOT/'data/surface_goals.json').read_bytes()),
       'mismatched_goals_source':read(ROOT/'data/strongreject_source.json'),
       'same_topic_is_a_retrieval_hypothesis':'not a label of non-assistance; full response semantic verification required'})
     print('Frozen',len(selected),'replies; first 50 balanced; 25 surface goals')

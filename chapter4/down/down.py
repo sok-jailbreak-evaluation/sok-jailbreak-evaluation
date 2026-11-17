@@ -52,12 +52,8 @@ def mapping():return {r['sample_id']:r for r in jsonl(DATA/'mapping.jsonl')}
 def probes():return jsonl(DATA/'screen_10.jsonl')
 def record_path(job,sid,phase='full',n=None):
     return OUT/job/phase/'records'/f'{sid}{"__"+str(n) if n is not None else ""}.json'
-def code_inventory():
-    paths=[*ROOT.glob('*.py'),ROOT/'config.json',*sorted((OLD/'reference').glob('*.py'))]
-    paths += [CASES/f for f in ['api_client.py','protocols/rubric_templates.json','revision_parden.py','generation_cases.py','references/PARDEN/utils.py']]
-    paths += [PPL/f for f in ['scoring.py','common.py','config.json']]
-    return {str(p.relative_to(REPO)):sha(p.read_bytes()) for p in sorted(paths)}
-def key(job):return sha({'job':job,'config':CONF,'code':code_inventory(),'input':sha((DATA/'harmful_down.jsonl').read_bytes()),'mapping':sha((DATA/'mapping.jsonl').read_bytes())})
+
+def key(job):return sha({'job':job,'config':CONF})
 def valid_rubric(x):
     return bool(x and x.get('parse_ok') and x.get('complete') and x.get('fields_in_native_ranges')
                 and isinstance(x.get('score'),(float,int)) and math.isfinite(x['score']) and 0<=x['score']<=1)

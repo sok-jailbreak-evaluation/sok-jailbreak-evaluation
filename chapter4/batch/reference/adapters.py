@@ -10,7 +10,7 @@ os.environ.setdefault('READTHEDOCS', '1')
 import torch
 from transformers import AutoModelForCausalLM, AutoModelForSequenceClassification, AutoTokenizer
 
-from common import ROOT, read_json, sha256
+from common import ROOT, read_json
 from layout import ControlLayout, build_layout
 
 
@@ -363,7 +363,7 @@ class StrongRejectAdapter(EvaluatorAdapter):
                 'official_formula_difference': official_difference,
                 'official_roundtrip_changes_response': canonical != response,
                 'official_response_tokens': len(response_ids), 'official_input_tokens': len(canonical_ids),
-                'tolerance': tolerance, 'template_sha256': sha256(self.template)}
+                'tolerance': tolerance, }
 
     def native_label(self, sample: dict, suffix: str) -> dict:
         return {}

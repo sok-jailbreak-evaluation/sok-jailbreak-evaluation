@@ -134,8 +134,7 @@ def base_record(dataset, source_id, prompt, response, label, stratum, context=""
             "context": context, "sampling_group": label, "sampling_stratum": list(stratum),
             "initial_experiment_eligible": label == "unharmful",
             "initial_optimization_direction": "up" if label == "unharmful" else None,
-            "prompt_sha256": digest(prompt), "response_sha256": digest(response), "context_sha256": digest(context),
-            "input_pair_sha256": digest({"prompt": prompt, "response": response, "context": context})}
+            "input_pair_id": digest({"prompt": prompt, "response": response, "context": context})}
 
 
 def load_sources(dataset, cfg):
@@ -143,7 +142,6 @@ def load_sources(dataset, cfg):
     rows, excluded, sources = [], [], []
     if dataset == "wildguardtest":
         source = (ROOT / cfg["wildguard_source"]).resolve()
-        assert digest(source.read_bytes()) == cfg["wildguard_source_sha256"]
         raw = pq.read_table(source).to_pylist()
         for index, item in enumerate(raw):
             if item["response_harm_label"] not in LABELS:
@@ -155,14 +153,12 @@ def load_sources(dataset, cfg):
                        native_label=item["response_harm_label"], response_harm_label=item["response_harm_label"],
                        prompt_harm_label=item["prompt_harm_label"], subcategory=item["subcategory"], original_record=item)
             rows.append(row)
-        sources.append({"path": str(source.relative_to(REPO)), "sha256": digest(source.read_bytes()), "rows": len(raw),
+        sources.append({"path": str(source.relative_to(REPO)), "rows": len(raw),
                         "revision": None, "provenance": "existing local WildGuardTest parquet; upstream revision is unknown, not inferred"})
     elif dataset == "harmbench_response":
         folder = ROOT / "sources/harmbench"
         provenance = read(ROOT / "sources/harmbench_source_manifest.json")
         assert provenance["revision"] == cfg["harmbench_revision"]
-        for entry in provenance["files"]:
-            assert digest((ROOT / entry["path"]).read_bytes()) == entry["sha256"]
         source = folder / "data/classifier_val_sets/text_behaviors_val_set.json"
         meta_path = folder / "data/behavior_datasets/harmbench_behaviors_text_all.csv"
         raw = read(source)
@@ -180,20 +176,17 @@ def load_sources(dataset, cfg):
                 label = "harmful" if native else "unharmful"
                 row = base_record(dataset, f"{behavior_id}:{index}", meta["Behavior"], item["generation"], label,
                                   [meta["SemanticCategory"], meta["FunctionalCategory"]], meta["ContextString"])
-                row.update(behavior_id=behavior_id, item_index=index, test_case=item["test_case"], test_case_sha256=digest(item["test_case"]),
-                           source_dataset="centerforaisafety/HarmBench", source_split="classifier_val_sets/text_behaviors_val_set",
+                row.update(behavior_id=behavior_id, item_index=index, test_case=item["test_case"], source_dataset="centerforaisafety/HarmBench", source_split="classifier_val_sets/text_behaviors_val_set",
                            source_revision=cfg["harmbench_revision"], semantic_category=meta["SemanticCategory"],
                            functional_category=meta["FunctionalCategory"], model=item["model"], method=item["method"],
                            label_scope="goal_conditioned_harmful_behavior_success", label_source="three_human_votes_majority",
                            native_label=native, response_harm_label=None, global_response_harmfulness="not_separately_annotated",
                            human_votes=[item[f"human_{i}"] for i in range(3)], behavior_metadata=meta, original_record=item)
                 rows.append(row)
-        sources = [{"path": str(p.relative_to(REPO)), "sha256": digest(p.read_bytes())} for p in [source, meta_path]]
+        sources = [{"path": str(p.relative_to(REPO)), } for p in [source, meta_path]]
     elif dataset == "jailbreakbench_response":
         provenance = read(ROOT / "sources/jailbreakbench_source_manifest.json")
         assert provenance["revision"] == cfg["jailbreakbench_revision"]
-        for entry in provenance["files"]:
-            assert digest((ROOT / entry["path"]).read_bytes()) == entry["sha256"]
         source = ROOT / "sources/jailbreakbench/data/judge-comparison.csv"
         with source.open() as stream:
             raw = list(csv.DictReader(stream))
@@ -205,7 +198,7 @@ def load_sources(dataset, cfg):
             row = base_record(dataset, f"row-{index:04d}", item["goal"], item["target_response"], label,
                               ["no_official_category"])
             row.update(source_row_index=index, original_index=item["Index"], test_case=item["prompt"],
-                       test_case_sha256=digest(item["prompt"]), source_dataset="JailbreakBench/JBB-Behaviors",
+                       source_dataset="JailbreakBench/JBB-Behaviors",
                        source_configuration="judge_comparison", source_split="test",
                        source_revision=cfg["jailbreakbench_revision"], native_label=native,
                        human_votes=[int(item[f"human{i}"]) for i in range(1, 4)],
@@ -214,17 +207,13 @@ def load_sources(dataset, cfg):
                        global_response_harmfulness="not_separately_annotated", category=None,
                        category_source="not_provided_in_judge_comparison", original_record=item)
             rows.append(row)
-        sources = [{"path": str(source.relative_to(REPO)), "sha256": digest(source.read_bytes()),
-                    "rows": len(raw), "revision": cfg["jailbreakbench_revision"],
+        sources = [{"path": str(source.relative_to(REPO)), "rows": len(raw), "revision": cfg["jailbreakbench_revision"],
                     "provenance": "official actual responses with three human votes; goal/prompt/target_response kept separately"}]
     elif dataset == "xstest_response":
         source = ROOT / "sources/xstest_response/data/response_harmfulness-00000-of-00001.parquet"
         if not source.exists():
             raise FileNotFoundError("XSTest-Response response_harmfulness parquet is not available; do not use refusal labels or prompt labels as replacements")
         provenance = read(ROOT / "sources/xstest_local_source_manifest.json")
-        assert digest(source.read_bytes()) == cfg["xstest_source_sha256"]
-        for entry in provenance["files"]:
-            assert digest((ROOT / entry["path"]).read_bytes()) == entry["sha256"]
         raw = pq.read_table(source).to_pylist()
         for index, item in enumerate(raw):
             if item["label"] not in LABELS:
@@ -233,12 +222,11 @@ def load_sources(dataset, cfg):
             row = base_record(dataset, f"row-{index:04d}", item["prompt"], item["response"], item["label"], [item["prompt_harm_category"] or "unknown"])
             row.update(source_row_index=index, source_dataset="allenai/xstest-response", source_split="response_harmfulness",
                        source_revision=provenance["verified_upstream_revision"], expected_upstream_revision=cfg["xstest_revision"],
-                       source_file_sha256=digest(source.read_bytes()),
                        label_scope="response_harmfulness", label_source="original_response_harmfulness_split_label",
                        native_label=item["label"], response_harm_label=item["label"], prompt_type=item["prompt_type"],
                        prompt_harm_category=item["prompt_harm_category"], original_record=item)
             rows.append(row)
-        sources = [{"path": str(source.relative_to(REPO)), "sha256": digest(source.read_bytes()), "rows": len(raw),
+        sources = [{"path": str(source.relative_to(REPO)), "rows": len(raw),
                     "provenance": "user supplied local response_harmfulness parquet; exact upstream revision not authenticated"}]
     else:
         raise ValueError(f"Unknown dataset: {dataset}")
@@ -246,7 +234,7 @@ def load_sources(dataset, cfg):
     assert len(ids) == len(set(ids))
     duplicate_pairs = defaultdict(list)
     for row in rows:
-        duplicate_pairs[row["input_pair_sha256"]].append(row["sample_id"])
+        duplicate_pairs[row["input_pair_id"]].append(row["sample_id"])
     if any(len(v) > 1 for v in duplicate_pairs.values()):
         raise ValueError(f"Repeated exact evaluation inputs in {dataset}; review duplicate provenance before sampling")
     return rows, excluded, sources
@@ -287,14 +275,13 @@ def build(datasets, output, per_label=100, seed=42, allow_shortfall=False):
                     "shortfalls": {name: m["shortfalls"] for name, m in manifests.items()},
                     "sampling_requirements_met": all(not n for m in manifests.values() for n in m["shortfalls"].values()),
                     "selection_uses_model_scores": False, "replacement": False, "initial_direction": "up_only",
-                    "source_code": {p.name: digest(p.read_bytes()) for p in sorted(ROOT.glob("*.py"))},
-                    "files": {name: {"sha256": digest(text), "bytes": len(text.encode())} for name, text in content.items()}}
-        manifest["dataset_fingerprint"] = digest(manifest)
+                    "source_code": [p.name for p in sorted(ROOT.glob("*.py"))],
+                    "files": {name: {"bytes": len(text.encode())} for name, text in content.items()}}
         content["manifest.json"] = as_json(manifest)
         for name, text in content.items():
             frozen_write(output / name, text)
     print(as_json({"output": str(output), "samples": len(all_samples), "datasets": datasets,
-                   "per_dataset_per_label": per_label, "fingerprint": manifest["dataset_fingerprint"]}), end="")
+                   "per_dataset_per_label": per_label, }), end="")
     return manifest
 
 

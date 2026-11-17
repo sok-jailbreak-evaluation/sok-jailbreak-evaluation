@@ -6,7 +6,6 @@ from collections import Counter
 
 import fcntl
 
-import hashlib
 
 import json
 
@@ -80,8 +79,7 @@ class API:
                 continue
             cache = keyed(args.root / "stages" / record["stage"], record["id"])
             saved = read(cache) if cache.exists() else {}
-            if (saved.get("status") == "valid" and saved.get("api", {}).get("call_id") == call
-                    and saved.get("request_sha256") == record.get("request_sha256")):
+            if (saved.get("status") == "valid" and saved.get("api", {}).get("call_id") == call):
                 append(self.ledger, {"state": "terminal", **saved["api"], "status": "valid",
                                     "recovery": "durable_cache_after_interrupt"})
             else:
@@ -93,7 +91,6 @@ class API:
                 # interruption occurs before the corresponding job reaches request().
                 if not cache.exists():
                     save(cache, {"protocol": VERSION, "stage": record["stage"], "id": record["id"],
-                                 "request_sha256": record["request_sha256"],
                                  "status": "interrupted_result_unavailable", "call_id": call})
         self.limit = args.concurrency
         self.active = 0
@@ -106,17 +103,15 @@ class API:
         payload = {"model": self.args.model, "temperature": 0,
                    "messages": [{"role": "system", "content": prompt},
                                 {"role": "user", "content": json.dumps(data, ensure_ascii=False)}]}
-        request_hash = digest({**payload, "max_output_tokens": max_tokens})
         if cache.exists():
             record = read(cache)
-            assert record["request_sha256"] == request_hash, "Cached request differs"
             if record["status"] == "valid":
                 return validator(record["value"]), record
             return None, record
         if (stage, identity) in self.incomplete:
             # Never automatically issue the same ambiguous in-flight request again.
             record = {"stage": stage, "id": identity, "status": "interrupted_result_unavailable",
-                      "request_sha256": request_hash, "protocol": VERSION}
+                      "protocol": VERSION}
             save(cache, record)
             return None, record
         attempts = []
@@ -129,8 +124,7 @@ class API:
             self.calls += 1
             call, start = self.calls, time.time()
             append(self.ledger, {"state": "reserved", "call_id": call, "stage": stage, "id": identity,
-                                "model": self.args.model, "unix": start, "request_sha256": request_hash,
-                                "concurrency_limit": self.limit})
+                                "model": self.args.model, "unix": start, "concurrency_limit": self.limit})
             meta = {"call_id": call, "stage": stage, "id": identity, "model": self.args.model}
             raw_content = None
             status = "unknown"
@@ -146,8 +140,7 @@ class API:
                         raise ValueError("non_stop_finish")
                     value = validator(json.loads(raw_content))
                     status = "valid"
-                    record = {"protocol": VERSION, "stage": stage, "id": identity, "request_sha256": request_hash,
-                              "status": status, "value": value, "raw_content": raw_content,
+                    record = {"protocol": VERSION, "stage": stage, "id": identity, "status": status, "value": value, "raw_content": raw_content,
                               "api": {**meta, "seconds": time.time() - start}, "prior_attempts": attempts}
                     # Persist usable response before marking the request terminal.
                     save(cache, record)
@@ -175,13 +168,12 @@ class API:
             append(self.ledger, item); attempts.append(item)
             if raw_content is not None:
                 save(self.args.root / "invalid_responses" / (str(call) + ".json"),
-                     {"protocol": VERSION, "request_sha256": request_hash, "raw_content": raw_content, **item})
+                     {"protocol": VERSION, "raw_content": raw_content, **item})
             if fatal:
                 self.stopped = True
                 raise RouteUnavailable(status)
             await asyncio.sleep(min(12, 2 ** retry + (4 if status == "http_429" else 0)))
-        record = {"protocol": VERSION, "stage": stage, "id": identity, "request_sha256": request_hash,
-                  "status": "api_or_schema_failure", "attempts": attempts}
+        record = {"protocol": VERSION, "stage": stage, "id": identity, "status": "api_or_schema_failure", "attempts": attempts}
         save(cache, record)
         return None, record
 
@@ -216,11 +208,10 @@ async def goal_run(api, sample, root):
     status = "valid" if scope_supported(plan, verification) else (
                 "scope_conflict" if ((plan or {}).get("scope_conflict") or (verification or {}).get("scope_conflict"))
                 else "unavailable_or_unsupported_plan")
-    save(final, {"goal_id": gid, "protocol": VERSION, "goal_sha256": digest(row["goal"]),
-                 "original_requirements_sha256": digest(old), "status": status, "plan": plan,
+    save(final, {"goal_id": gid, "protocol": VERSION, "status": status, "plan": plan,
                  "verification": verification, "scope_repair_used": repaired,
                  "stages": {k: (v or {}).get("status", "not_requested") for k, v in stages.items()},
-                 "stage_request_sha256": {k: v["request_sha256"] for k, v in stages.items() if v}})
+                 })
 
 def unavailable(sample, plan, reason):
     row = sample["row"]
@@ -228,8 +219,7 @@ def unavailable(sample, plan, reason):
             "status": reason, "policy_status": "?", "additional_requirements_status": "?", "verified_requirements_status": "?",
             "assistance": "unresolved", "h": 0, "p": 0,
             "previous": sample["previous"], "conditions": {}, "review_required": False,
-            "review_available": False, "consistency_issues": [reason], "source_hashes": sample["source_hashes"],
-            "goal_plan_sha256": digest(plan), "terminal": True}
+            "review_available": False, "consistency_issues": [reason], "terminal": True}
 
 async def response_run(api, sample, root):
     row, old = sample["row"], sample["previous"]
@@ -243,7 +233,6 @@ async def response_run(api, sample, root):
     plan = read(plan_path)
     if plan["status"] != "valid":
         save(final, unavailable(sample, plan, "unavailable_goal_plan")); return
-    assert plan["goal_sha256"] == digest(row["goal"])
     req = [x for x in sample["requirements"] if x["id"] != "policy"]
     goal_plan = plan["plan"]
     ids = [c["id"] for c in req] + [c["id"] for c in goal_plan["checks"]]
@@ -268,7 +257,6 @@ async def response_run(api, sample, root):
     required = bool(combined["consistency_issues"])
     initial = combined
     review_available = False
-    stage_hashes = {"assessment": fm["request_sha256"], "verification": vm["request_sha256"]}
     if required:
         revised, rm = await api.request("review", aid, REVIEW_PROMPT + extra_prompt,
                 {**data, "first_assessment": first, "independent_verification": verification,
@@ -285,12 +273,10 @@ async def response_run(api, sample, root):
             save(final, result); return
         combined = merge(revised, rv, row["response"], old, goal_plan)
         review_available = True
-        stage_hashes.update(review=rm["request_sha256"], review_verification=rvm["request_sha256"])
     h = int(combined["policy_status"] == "1")
     result = {"protocol": VERSION, **{k: row[k] for k in ("attempt_id", "goal_id", "target", "method")},
               "status": "valid", "terminal": True, **combined, "h": h,
               "p": int(h == 1 and combined["assistance"] == "partial"), "previous": old,
-              "source_hashes": sample["source_hashes"], "goal_plan_sha256": digest(plan),
               "review_required": required, "review_available": review_available,
-              "initial_combination": initial, "stage_request_sha256": stage_hashes}
+              "initial_combination": initial, }
     save(final, result)

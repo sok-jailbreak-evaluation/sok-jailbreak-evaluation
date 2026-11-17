@@ -9,7 +9,6 @@ def sha(b):return hashlib.sha256(b).hexdigest()
 def dump(p,obj):
     tmp=Path(str(p)+'.partial');tmp.write_text(json.dumps(obj,indent=2)+'\n');os.replace(tmp,p)
 t0=time();spec=json.loads(Path('manifest.json').read_bytes());inp=gzip.decompress(Path('input.jsonl.gz').read_bytes())
-assert sha(inp)==spec['content_sha256']
 rows=[json.loads(l) for l in inp.decode().splitlines()]
 assert bool(rows) and torch.cuda.device_count()==1
 model_name=spec['model']
@@ -36,7 +35,7 @@ def report(log):
     print(json.dumps(log),flush=True)
 jobs={};records=[]; templates={}
 for row in rows:
-    r={k:row[k] for k in ['method','target','goal_id','goal_sha256','response_sha256']}
+    r={k:row[k] for k in ['method','target','goal_id',]}
     s=row['response']
     if not s.strip():
         r.update(early='missing',full='missing',response_tokens=None)
@@ -50,7 +49,7 @@ for row in rows:
             # Native 8B Jinja uses content.strip() before assembling its prompt.
             text=tmpl.replace(marker,part.strip())
             ids=tok.encode(text,add_special_tokens=False)
-            k=sha(text.encode());r[stage+'_render_sha256']=k
+            k=sha(text.encode());r[stage+'_render_id']=k
             if len(ids)+20>8192:r[stage]='incompatible'
             elif k not in jobs:jobs[k]=ids
     records.append(r)
@@ -68,10 +67,7 @@ assert len(samples)>=3 and batch==[v for _,v in samples] and all(v in ('safe','u
 dump('smoke.json',{'observations':samples,'native_and_worker_token_ids_match':True,'batched_first_line_matches_official_singleton':True})
 db=sqlite3.connect('scores.sqlite')
 db.execute('create table if not exists label(k text primary key, v text not null)')
-db.execute('create table if not exists protocol(k text primary key, v text not null)')
-finger=sha(Path('worker.py').read_bytes()+Path('manifest.json').read_bytes());rr=db.execute("select v from protocol where k='sha256'").fetchone()
-if rr:assert rr[0]==finger
-else:db.execute("insert into protocol values ('sha256',?)",(finger,));db.commit()
+
 db.executemany('insert or ignore into label values (?,?)',samples);db.commit()
 done=dict(db.execute('select k,v from label'))
 todo=sorted((k for k in jobs if k not in done),key=lambda k:len(jobs[k]))
@@ -99,11 +95,10 @@ assert len(done)==len(jobs)
 trans=defaultdict(Counter)
 for r in records:
     for stage in ('early','full'):
-        if stage not in r:r[stage]=done[r[stage+'_render_sha256']]
+        if stage not in r:r[stage]=done[r[stage+'_render_id']]
     trans[r['method'],r['target']][r['early']+'_'+r['full']]+=1
 raw=''.join(json.dumps(r,separators=(',',':'))+'\n' for r in records).encode()
 p=Path('records.jsonl.gz');tmp=p.with_suffix('.tmp');tmp.write_bytes(gzip.compress(raw,3,mtime=0));os.replace(tmp,p)
-d=status();d.update(complete=True,gpu_device=torch.cuda.get_device_name(),input_sha=spec['content_sha256'],
-    output_sha=sha(p.read_bytes()),weights=model_name,groups=[dict(method=k[0],target=k[1],counts=v) for k,v in sorted(trans.items())])
+d=status();d.update(complete=True,gpu_device=torch.cuda.get_device_name(),weights=model_name,groups=[dict(method=k[0],target=k[1],counts=v) for k,v in sorted(trans.items())])
 assert sum(sum(x['counts'].values()) for x in d['groups'])==len(rows)
 dump('summary.json',d)

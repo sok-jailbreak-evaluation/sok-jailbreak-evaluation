@@ -155,7 +155,6 @@ def run(args):
         raise ValueError("No evaluation rows")
     manifest = {
         "model": args.model, "protocol_id": PROTOCOLS[args.model], "native_positive": POSITIVES[args.model],
-        "data_sha256": sha256(raw), "runner_sha256": sha256(Path(__file__).read_bytes()),
         "rows": len(rows), "limit": args.limit,
         "context_policy": "Complete text, no truncation. Separate context is used by HarmBench's native template.",
         "strongreject_cutoff": 0.5 if args.model == "strongreject" else None,
@@ -166,18 +165,13 @@ def run(args):
         references = [*args.reference_root.glob("*.py"), *args.reference_root.joinpath("configs").rglob("*.json")]
         if not references:
             raise FileNotFoundError("Frozen adapter reference path is unavailable")
-        manifest["reference_sha256"] = {
-            str(path.relative_to(args.reference_root)): sha256(path.read_bytes()) for path in sorted(references)
-        }
         manifest["models"] = {}
         for directory in MODEL_DIRS[args.model]:
             path = args.models_root / directory
             if not path.is_dir():
                 raise FileNotFoundError(f"Missing local model: {directory}")
             manifest["models"][str(path)] = {
-                file.name: ({"bytes": file.stat().st_size, "sha256": sha256(file.read_bytes())}
-                            if file.stat().st_size <= 1_000_000 else
-                            {"bytes": file.stat().st_size, "mtime_ns": file.stat().st_mtime_ns})
+                file.name: {"bytes": file.stat().st_size}
                 for file in sorted(path.iterdir()) if file.is_file()
             }
         manifest["packages"] = {

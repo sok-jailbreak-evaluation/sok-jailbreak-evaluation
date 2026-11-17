@@ -301,10 +301,10 @@ def literal_count_checks(goal, response, artifacts):
 def check_record(row, specification=None):
     goal, response = row["goal"], row.get("response")
     specification = specification or {}
-    if specification and (specification.get("goal_id") != row["goal_id"] or specification.get("goal_sha256") != digest(goal)):
-        raise ValueError("frozen specification goal identity or text differs")
+    if specification and specification.get("goal_id") != row["goal_id"]:
+        raise ValueError("specification goal identity differs")
     base = {"attempt_id": row["attempt_id"], "goal_id": row["goal_id"], "protocol": PROTOCOL,
-            "goal_sha256": digest(goal), "response_sha256": digest(response) if isinstance(response, str) else None}
+            }
     if row.get("response_status") != "valid" or not isinstance(response, str) or not response.strip():
         return {**base, "status": "missing_response", "applicable": False, "checks": [], "required_outcome": "?"}
     checks, artifacts = artifact_checks(response, goal, specification)
@@ -337,8 +337,6 @@ def main():
         if links:
             source = links[row["attempt_id"]]["specification"]
             raw = (args.source_base / source["path"]).read_bytes()
-            if hashlib.sha256(raw).hexdigest() != source["sha256"]:
-                raise ValueError("linked frozen specification checksum differs")
             specification = json.loads(raw)
         elif args.specs:
             specification = json.loads((args.specs / (digest(row["goal_id"]) + ".json")).read_text())

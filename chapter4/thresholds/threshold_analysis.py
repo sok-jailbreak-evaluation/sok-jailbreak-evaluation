@@ -11,7 +11,6 @@ import argparse
 from collections import Counter
 import csv
 import gzip
-import hashlib
 import json
 import math
 from pathlib import Path
@@ -176,9 +175,7 @@ def analyze(source, output, plots=True):
     output.mkdir(parents=True, exist_ok=True)
     rows = load_source(source)
     curve_rows, stratified, fixed_reference_pool = [], [], []
-    summary = {'source': str(source), 'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
-               'analysis_source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-               'GPU_calls': 0, 'API_calls': 0, 'thresholds': list(THRESHOLDS), 'jobs': {},
+    summary = {'source': str(source), 'GPU_calls': 0, 'API_calls': 0, 'thresholds': list(THRESHOLDS), 'jobs': {},
                'interpretation': 'Offline reclassification of fixed saved texts, not independently optimized threshold experiments.',
                'accounting': 'B is valid-pair baseline-positive; B+F+U+invalid=N. Baseline positives with invalid final are separately reported.',
                'selection_caveat': 'StrongREJECT-ft saved suffixes used first-hit early stopping at 0.5. Higher offline thresholds do not measure reoptimization at those thresholds.',

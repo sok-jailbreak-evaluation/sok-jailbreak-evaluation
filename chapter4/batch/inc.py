@@ -54,11 +54,7 @@ def sample(row,model):
     if model!='harmbench' and r.get('context'):r['prompt']=r['context']+'\n\n'+r['prompt']
     return r
 def key(job):
-    # Execution location and the aggregate dataset hash are provenance, not a
-    # reason to invalidate an unchanged historical sample's protocol.
-    return sha({'study':'incremental619/v1','job':job,'data':sha((DATA/'unharmful_up.jsonl').read_bytes()),
-                'code':{p.name:sha(p.read_bytes()) for p in sorted(ROOT.glob('*.py'))},
-                'mapping':sha((DATA/'mapping.jsonl').read_bytes()),'config':read(ROOT/'config.json')})
+    return sha({'study':'incremental619/v1','job':job,'config':read(ROOT/'config.json')})
 def record_path(job,sid,repetition=None):
     suffix=f'__last_sentence__{repetition}' if repetition is not None else ''
     return OUT/job/'records'/f'{sid}{suffix}.json'

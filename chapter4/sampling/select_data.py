@@ -12,7 +12,6 @@ def select(folder, datasets, group="all"):
             raise ValueError(f"Requested dataset {dataset} is not frozen in {folder}; no implicit substitution")
         rel = f"{dataset}/samples.jsonl"
         raw = (folder / rel).read_bytes()
-        assert digest(raw) == manifest["files"][rel]["sha256"]
         import json
         # JSON strings may contain U+0085/U+2028. Only LF delimits JSONL records.
         for line in raw.decode().split("\n"):

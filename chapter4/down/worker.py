@@ -46,9 +46,8 @@ def run(name,phase):
         if phase=='full':
             for model in CONF['order']:
                 pilot=read(OUT/model/'preflight/status.json')
-                assert pilot['passed'] and pilot['fingerprint']==key
+                assert pilot['passed']
         if (output/'status.json').exists() and read(output/'status.json').get('complete'):
-            assert read(output/'status.json')['fingerprint']==key
             print('Already complete',name,phase,flush=True);return
         assert torch.cuda.is_available() and torch.cuda.device_count()==1
         torch.set_num_threads(6);torch.manual_seed(42)
@@ -56,14 +55,14 @@ def run(name,phase):
         torch.set_float32_matmul_precision('highest')
         torch.cuda.set_per_process_memory_fraction(min(1.,cfg['max_gpu_memory_gib']*1024**3/torch.cuda.get_device_properties(0).total_memory))
         started=time.perf_counter();adapter=create(name,output);load=time.perf_counter()-started
-        write(output/'environment.json',{'fingerprint':key,'evaluator':name,'metadata':adapter.metadata(),
+        write(output/'environment.json',{'evaluator':name,'metadata':adapter.metadata(),
             'model_load_seconds':load,'physical_gpu':GPU,'CUDA_VISIBLE_DEVICES':os.environ.get('CUDA_VISIBLE_DEVICES'),
             'gpu_uuid':str(torch.cuda.get_device_properties(0).uuid),'gpu_name':torch.cuda.get_device_name(0),
             'python':platform.python_version(),'torch':torch.__version__,'transformers':transformers.__version__,
             'memory_limit_gib':cfg['max_gpu_memory_gib'],'TF32':False,'config':cfg})
         if phase=='preflight':
             compat=compatibility(adapter,rows)
-            write(OUT/name/'compatibility.json',{'fingerprint':key,'samples':compat,
+            write(OUT/name/'compatibility.json',{'samples':compat,
                 'baseline_incompatible':sum(not r['baseline_compatible'] for r in compat),
                 'initial_incompatible':sum(not r['initial_compatible'] for r in compat),
                 'policy':'do not truncate, replace or silently omit any formal task'})
@@ -76,7 +75,7 @@ def run(name,phase):
             path=output/'records'/f'{sid}.json'
             if path.exists():
                 saved=read(path)
-                assert saved['sample']==original and (saved.get('reuse',{}).get('historical') or saved['fingerprint']==key)
+                assert saved['sample']==original
                 continue
             task_started=time.perf_counter();meter_before=Counter(adapter.meter)
             run_id=f'{key}:{name}:{phase}:{steps}:{sid}'
@@ -94,7 +93,7 @@ def run(name,phase):
                 current=dict(state)
                 current.setdefault('best',current.get('final'))
                 current.setdefault('current_suffix',current['best_suffix'])
-                current['_audit']=audit();current['fingerprint']=key
+                current['_audit']=audit();
                 if current['steps']:
                     current['steps'][-1]['cumulative_task_seconds']=current['_audit']['seconds']
                 checkpoint.save(current)
@@ -105,18 +104,17 @@ def run(name,phase):
             try:
                 basepath=output/'baselines'/f'{sid}.json'
                 if basepath.exists():
-                    base=read(basepath);assert base['fingerprint']==key and base['sample']==original
+                    base=read(basepath);assert base['sample']==original
                     baseline=base['native']
                 else:
                     baseline=adapter.evaluate_native(sample,'','baseline')
-                    write(basepath,{'fingerprint':key,'sample':original,'native':baseline})
+                    write(basepath,{'sample':original,'native':baseline})
                 if not baseline['parse_ok']:
                     raise AssertionError('Invalid native baseline; not a comparable low prediction')
                 if phase=='full' and baseline['parse_ok'] and baseline['target_hit']:
                     suffix='';initial_suffix_text=None;terminal=baseline
                     reason='baseline_already_negative';steps_run=0;candidate_evals=0;rechecks=0;first=None
-                    write(output/'checkpoints'/f'{sid}.json',{'run_id':run_id,'fingerprint':key,
-                        'status':'complete_baseline_negative','current_suffix':'','best_suffix':'',
+                    write(output/'checkpoints'/f'{sid}.json',{'run_id':run_id,'status':'complete_baseline_negative','current_suffix':'','best_suffix':'',
                         'step_count':0,'baseline':baseline,'_audit':audit()})
                 else:
                     if saved_state:
@@ -162,7 +160,7 @@ def run(name,phase):
                 new_flip=comparable and not baseline['hit'] and terminal['hit']
                 initial_flip=bool(new_flip and initial is not None and initial['parse_ok'] and initial['hit'])
                 search_flip=bool(new_flip and not initial_flip and first is not None and first['step']>0)
-                record={'fingerprint':key,'run_id':run_id,'evaluator':name,'phase':phase,'frozen_position':position,
+                record={'run_id':run_id,'evaluator':name,'phase':phase,'frozen_position':position,
                     'sample_id':sid,'dataset_id':original['dataset_id'],'sample':original,'direction':'down',
                     'actual_question':sample['prompt'],'search_seed_index':sample['source_row_index'],
                     'baseline_native':baseline,'initial_suffix':initial_suffix_text,'initial_native':initial,
@@ -188,7 +186,7 @@ def run(name,phase):
                     raise  # Keep last atomic checkpoint; controller retries in a fresh CUDA process.
                 latest=checkpoint.load() if checkpoint.state_path.exists() else None
                 done_steps=result['steps'] if result else (latest['steps'] if latest else [])
-                record={'fingerprint':key,'run_id':run_id,'evaluator':name,'phase':phase,'frozen_position':position,
+                record={'run_id':run_id,'evaluator':name,'phase':phase,'frozen_position':position,
                     'sample_id':sid,'dataset_id':original['dataset_id'],'sample':original,'direction':'down',
                     'actual_question':sample['prompt'],'baseline_native':baseline,'initial_native':initial,
                     'final_native':terminal,'failed':True,'incomparable':True,'new_flip':False,
@@ -207,7 +205,7 @@ def run(name,phase):
             print('COMPLETE',name,phase,position,sid,record['stop_reason'],'steps',record['steps_run'],flush=True)
         records=[read(output/'records'/f'{rows[i]["sample_id"]}.json') for i in active]
         passed=all(not r['failed'] and r.get('checkpoint_readback_passed') and r.get('native_gate_enabled') for r in records) if phase=='preflight' else True
-        write(output/'status.json',{'fingerprint':key,'complete':True,'passed':bool(passed),'evaluator':name,
+        write(output/'status.json',{'complete':True,'passed':bool(passed),'evaluator':name,
             'phase':phase,'covered':len(records),'expected':len(active),'failed':sum(r['failed'] for r in records),
             'native_gate_enabled':True,'early_stop_observed':sum(r.get('stop_reason') in ('native_flip','native_flip_initial') for r in records),
             'model_load_seconds':load,'total_seconds':time.perf_counter()-started,

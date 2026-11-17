@@ -17,8 +17,8 @@ def search_sample(row,position):
 
 def prepare():
     import torch
-    fingerprint=key(NAME);rows=data()
+    run_key=key(NAME);rows=data()
     free,_=torch.cuda.mem_get_info()
     cfg=CONF['models'][NAME]
     cfg['max_gpu_memory_gib']=min(64,max(1,(free-3*1024**3)/1024**3))
-    return fingerprint,rows
+    return run_key,rows

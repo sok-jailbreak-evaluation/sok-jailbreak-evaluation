@@ -55,23 +55,22 @@ def prepare(source, root):
             sig=sha(canonical(item))
             prompts[sig]=item
         attempts[key]={'attempt_id':key,**dict(zip(('target','method','goal_id'),ids)), 'goal':r['goal'],
-            'goal_sha256':sha(r['goal'].encode()), 'context':r.get('context') or '',
+            'context':r.get('context') or '',
             'attack_prompt':prompt, 'attack_prompt_scope':r.get('attack_prompt_scope'),
-            'prompt_digest':sig,'response':response,'response_sha256':sha(response.encode()),'response_status':status}
+            'prompt_digest':sig,'response':response,'response_status':status}
     if not attempts:
         raise ValueError('No selected attempts')
     raw=lines(attempts.values())
     for name in ('all.jsonl','attempts.jsonl'):
         freeze(root/'input'/name,raw)
     freeze(root/'input/goals.jsonl',lines({'goal_id':k,'goal':v} for k,v in goals.items()))
-    freeze(root/'input/manifest.json',canonical({'outputs_sha256':{'attempts.jsonl':sha(raw)}}))
+    freeze(root/'input/manifest.json',canonical({'records':len(attempts),'goals':len(goals)}))
     sem=root/'comparators/semantic'
     unique=gzip.compress(canonical(prompts),mtime=0)
     freeze(sem/'unique.json.gz',unique)
-    freeze(sem/'input_manifest.json',canonical({'unique_sha256':sha(unique)}))
     guard=root/'comparators/guard'
     freeze(guard/'input.jsonl.gz',gzip.compress(raw,mtime=0))
-    freeze(guard/'manifest.json',canonical({'model':'../../models/Llama-Guard-3-8B','content_sha256':sha(raw)}))
+    freeze(guard/'manifest.json',canonical({'model':'../../models/Llama-Guard-3-8B',}))
 
 if __name__=='__main__':
     cli=argparse.ArgumentParser(description=__doc__)

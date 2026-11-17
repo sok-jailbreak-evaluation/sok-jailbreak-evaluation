@@ -10,7 +10,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import transformers
 
-from common import CASES, CONF, ROOT, read, sha, windows
+from common import CASES, CONF, ROOT, read, windows
 sys.path.insert(0, str(CASES))
 from revision_ppl import token_losses, summarize
 
@@ -98,13 +98,12 @@ class Scorer:
             torch.cuda.synchronize()
             pieces.append({**window, 'target_count': expected, 'sum_nll': math.fsum(selected),
                 'mean_nll': explicit, 'native_loss': native, 'native_loss_abs_error': error,
-                'input_ids_sha256': sha(ids[window['start']:window['end']]),
                 'seconds': time.perf_counter()-before})
             losses.extend(selected); cursor = window['end']; self.calls += 1
             del output, x, labels
         assert cursor == len(ids) and len(losses) == len(ids)-1
         return {**summarize(losses), 'input_ids': ids, 'offset_mapping': offsets,
-            'text_sha256': sha(text), 'input_tokens_including_bos': len(ids),
+            'input_tokens_including_bos': len(ids),
             'all_target_tokens_scored_exactly_once': True, 'context': self.context, 'stride': self.stride,
             'windows': pieces, 'model_forwards': len(pieces),
             'max_native_loss_abs_error': max(p['native_loss_abs_error'] for p in pieces),

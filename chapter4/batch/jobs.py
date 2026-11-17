@@ -79,9 +79,9 @@ async def api(phase):
             status=result.get('http_status')
             if status in [401,403] or any(s in result.get('error','').lower() for s in ['insufficient_quota','quota exceeded','credit balance']):
                 blocked[job]=f"{result.get('error_type')}, HTTP {status}: {result.get('error','')}"
-            write(OUT/job/'attempts'/f'{identity}_{attempt}.json',{'messages':messages,'native':result,'input_sha256':sha(messages)})
+            write(OUT/job/'attempts'/f'{identity}_{attempt}.json',{'messages':messages,'native':result,})
             if inc.valid(result):break
-        write(path,{'native':result,'messages':messages,'input_sha256':sha(messages),'historical':False})
+        write(path,{'native':result,'messages':messages,'historical':False})
         return result
 
     async def one(job,row):

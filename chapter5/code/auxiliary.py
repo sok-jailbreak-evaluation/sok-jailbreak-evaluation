@@ -214,12 +214,10 @@ def base_result(row, name, scoring_object):
     result = {key: row[key] for key in ('attempt_id', 'goal_id', 'method', 'target')}
     response = row.get('response')
     result.update(model=name, status='missing_response', decision=None, outcome='?', score=None,
-                  reason=None, response_sha256=sha(response.encode()) if isinstance(response, str) else None,
-                  response_characters=len(response) if isinstance(response, str) else None)
+                  reason=None, response_characters=len(response) if isinstance(response, str) else None)
     text = input_text(row, scoring_object)
     result.update(evaluation_object=scoring_object,
                   input_scope='unchanged_archived_response' if scoring_object == 'response' else row.get('attack_prompt_scope'),
-                  text_sha256=sha(text.encode()) if text is not None else None,
                   text_characters=len(text) if text is not None else None)
     if scoring_object == 'attack_prompt':
         result['status'] = 'missing_input'
@@ -234,11 +232,9 @@ def run(args):
         rows = [row for row in rows if row['target'] == args.target]
     if not rows:
         raise ValueError('No rows selected')
-    refs = {path.name: sha(path.read_bytes()) for path in sorted(REFERENCE.iterdir()) if path.is_file()}
     manifest = {'model': args.model, 'rows': len(rows), 'limit': args.limit,
                 'evaluation_object': args.object, 'target': args.target,
-                'data_sha256': sha(raw), 'runner_sha256': sha(Path(__file__).read_bytes()),
-                'reference_sha256': refs, 'model_spec': MODEL_SPECS[args.model],
+                'model_spec': MODEL_SPECS[args.model],
                 'input_policy': ('Complete unchanged raw response; no text truncation or substitutions'
                                  if args.object == 'response' else
                                  'Complete saved plain-text prompt or documented reconstruction; structured chats omitted'),
@@ -326,7 +322,7 @@ def run(args):
             if start == 0 or sum(counts.values()) % 40 < batch_size:
                 print(json.dumps(progress), flush=True)
         status = {'complete': sum(counts.values()) == len(rows), 'model': args.model,
-                  'data_sha256': sha(raw), 'rows': len(rows), 'status_counts': dict(counts),
+                  'rows': len(rows), 'status_counts': dict(counts),
                   'seconds_this_process': time.perf_counter() - started}
         write(args.out / 'status.json', status)
         print(json.dumps(status), flush=True)

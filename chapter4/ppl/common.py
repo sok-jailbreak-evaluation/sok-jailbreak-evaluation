@@ -1,13 +1,10 @@
-import hashlib,json,math,re
+import json,math,re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 CASES=ROOT.parent/'cases'
 CONF=json.loads((ROOT/'config.json').read_text())
 
-def sha(value):
-    if isinstance(value, str): value = value.encode()
-    if not isinstance(value, bytes): value = json.dumps(value, sort_keys=True, ensure_ascii=False).encode()
-    return hashlib.sha256(value).hexdigest()
+
 
 def read(path):
     return json.loads(Path(path).read_text())

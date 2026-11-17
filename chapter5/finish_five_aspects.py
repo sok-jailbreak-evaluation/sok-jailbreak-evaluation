@@ -18,7 +18,7 @@ for r in map(json.loads,(p/'input/all.jsonl').open()):
     if d['D']: assert d['verifier']['quote'] in r['response'][d['split_offset']:]
     counts[cell].update(vals);counts[cell]['n']+=1
     statuses[cell].update(['G_'+g['status'],'D_'+d['status'],'H_'+x['policy_status'],'R_'+separate['R_status'],'A_'+separate['A_status']])
-    details.append(dict(id=k,**vals,prompt_sha256=r['prompt_digest'],response_sha256=r['response_sha256'],g_status=g['status'],d_status=d['status'],R_status=separate['R_status'],A_status=separate['A_status'],partial_help=x['p']))
+    details.append(dict(id=k,**vals,g_status=g['status'],d_status=d['status'],R_status=separate['R_status'],A_status=separate['A_status'],partial_help=x['p']))
 assert len(details)==len(out)==len({r['id'] for r in details})
 report={'aspect_by_column':dict(G='L1.2',H='L2.2',R='L2.3',A='L2.4',D='L3.1'),'groups':[dict(target=t,method=m,**c,statuses=dict(statuses[t,m])) for (t,m),c in sorted(counts.items())],'planned':len(details),'new':len(new)}
 (p/'final_by_slot.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in details))

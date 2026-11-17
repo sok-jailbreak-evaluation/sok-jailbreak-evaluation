@@ -20,7 +20,7 @@ def run(model_name, phase):
     adapter = {'strongreject':StrongRejectAdapter,'harmbench':HarmBenchAdapter}[model_name](configuration(),'cuda:0')
     loaded = time.perf_counter()
     protocol = cfg['protocols'][model_name]
-    write(out/f'{phase}/protocol.json', {'protocol_id':protocol,'fingerprint':key,'model':adapter.metadata(),
+    write(out/f'{phase}/protocol.json', {'protocol_id':protocol,'model':adapter.metadata(),
       'physical_gpu':os.environ['CUDA_VISIBLE_DEVICES'],'gpu_uuid':str(torch.cuda.get_device_properties(0).uuid),
       'dtype':str(next(adapter.model.parameters()).dtype),'preprocessing':'complete raw goal and response; no truncation, no suffix',
       'native_protocol_manifest':str(ROOT.parent/'cases/protocols'/f'{model_name if model_name=="harmbench" else "strongreject_full_raw"}.json'),
@@ -38,7 +38,7 @@ def run(model_name, phase):
                 path=out/phase/'scores'/f'{index:04d}_{pair_index}.json'
                 if path.exists():
                     old=read(path)
-                    if old['fingerprint']!=key or old['response']!=row['response'] or old['goal']!=pair['goal']:
+                    if old['response']!=row['response'] or old['goal']!=pair['goal']:
                         raise RuntimeError('Native checkpoint input/config mismatch')
                     continue
                 sample={'prompt':pair['goal'],'response':row['response']}
@@ -59,18 +59,17 @@ def run(model_name, phase):
                             'input_tokens':len(ids),'input_truncated':False}
                 except ValueError as exc:
                     result={'status':'input_incompatible','error':str(exc),'native':{'parse_ok':False,'hit':False}}
-                record={'item':'2A_goal_relevance','fingerprint':key,'protocol_id':protocol,'model':model_name,
+                record={'item':'2A_goal_relevance','protocol_id':protocol,'model':model_name,
                   'response_index':index,'sample_id':row['sample_id'],'source_row':row['source_row'],
                   'dataset_response_label':row['dataset_response_label'],'original_goal':row['prompt'],
                   'goal':pair['goal'],'pair_index':pair_index,'pair_type':pair['pair_type'],
-                  'response':row['response'],'response_sha256':row['response_sha256'],
-                  'pair_metadata':pair,'elapsed_seconds':time.perf_counter()-start,**result}
+                  'response':row['response'],'pair_metadata':pair,'elapsed_seconds':time.perf_counter()-start,**result}
                 write(path,record)
-                write(out/phase/'checkpoint.json',{'fingerprint':key,'last_response_index':index,'last_pair_index':pair_index,
+                write(out/phase/'checkpoint.json',{'last_response_index':index,'last_pair_index':pair_index,
                   'resume':'atomic per-pair native records; exact text/config checked'})
             print(model_name,phase,'response',index+1,'/',limit,flush=True)
         if phase=='preflight': break
-        write(out/'stage.json',{'scored_up_to':limit,'awaiting_semantic_decision':True,'fingerprint':key})
+        write(out/'stage.json',{'scored_up_to':limit,'awaiting_semantic_decision':True,})
         # Persisted API lane reviews whole replies. It can stop this lane after
         # three distinct replies or authorize the bounded 200-reply extension.
         while True:
@@ -88,7 +87,7 @@ def run(model_name, phase):
     hits=sum(r['pair_index']>0 and r['native']['hit'] for r in records)
     if phase=='preflight' and (len(records)!=12 or valid_count!=12):
         raise RuntimeError('Native two-reply same-path preflight failed; inspect compatibility or labels')
-    write(out/phase/'status.json',{'complete':True,'fingerprint':key,'phase':phase,
+    write(out/phase/'status.json',{'complete':True,'phase':phase,
       'responses_tested':len({r['sample_id'] for r in records}),'native_ratings':len(records),'valid_ratings':valid_count,
       'mismatched_native_hits':hits,'stop_reason':stop_reason,'model_load_seconds':loaded-started,
       'elapsed_seconds':time.perf_counter()-started,'peak_reserved_bytes':torch.cuda.max_memory_reserved()})

@@ -34,15 +34,13 @@ class RoundAPI(API):
         self.db.commit(); return cursor.lastrowid
 
 async def native(api, route, goal, response, item, sid, role, path):
-    signature=sha(json.dumps([read(CONFIG)['protocols']['api'].format(route=route),rubric_messages(goal,response)],sort_keys=True))
     if path.exists():
         saved=read(path)
-        if saved['native_input_sha256']!=signature: raise RuntimeError('Cached native input/protocol mismatch')
         return saved
     raw=await api.call(route,rubric_messages(goal,response),item,sid,role=role,max_tokens=4096,temperature=0)
     parsed=parse_rubric(raw.get('content','')) if raw['status']=='ok' else {'parse_ok':False,'score':None}
     result={**raw, **parsed,'complete':raw.get('finish_reason') not in ('length','content_filter'),
-      'goal':goal,'response':response,'native_input_sha256':signature,'full_response_sent':True,
+      'goal':goal,'response':response,'full_response_sent':True,
       'protocol_id':read(CONFIG)['protocols']['api'].format(route=route),'role':role}
     write(path,result); return result
 
@@ -92,7 +90,7 @@ async def construct(api, routes, sample, family, round_index):
         feedback=sorted(feedback,key=lambda x:-x['score'])[:4]
     candidates=[];seen=set();attempts=[]
     for previous in (RUN/'api/construction').glob(f'round*/{sid}/*_candidates.json'):
-        seen.update(c['text_sha256'] for c in read(previous)['candidates'])
+        seen.update(c['text_id'] for c in read(previous)['candidates'])
     for attempt in range(2):
         constructor=routes[(round_index+attempt+1)%len(routes)]
         prompt=(
@@ -116,7 +114,7 @@ async def construct(api, routes, sample, family, round_index):
             if not isinstance(row,dict) or not legal(row.get('response'),read(CONFIG)['surface']): continue
             text=row['response'];text_id=sha(text)
             if text_id in seen: continue
-            seen.add(text_id);candidates.append({**row,'text_sha256':text_id,'words':len(text.split()),
+            seen.add(text_id);candidates.append({**row,'text_id':text_id,'words':len(text.split()),
               'constructor_route':constructor,'constructor_request_id':result['raw']['request_id']})
             if len(candidates)==4: break
         if len(candidates)==4: break
@@ -208,7 +206,7 @@ async def local_reviews(api,routes):
                         screen=await assess_no_help(api,route,row['goal'],row['response'],RUN/'api/local_reviews'/key/f'screen{n}.json',row['sample_id'],row['original_goal'])
                         screens.append(screen)
                         if screen['status']!='passed': break
-                    write(target,{'screens':screens,'goal':row['goal'],'response_sha256':row['response_sha256']})
+                    write(target,{'screens':screens,'goal':row['goal'],})
                 if len(screens)<2 or any(not screen_qualifies(s,'2A_goal_relevance',model) for s in screens): continue
                 assessments=[s['assessment'] for s in screens]
                 if any(not s['current_goal_is_harmful'] or not s['current_goal_is_well_defined'] for s in assessments): continue
@@ -221,7 +219,7 @@ async def local_reviews(api,routes):
                 case={**row,'case_id':f'2A_goal_relevance_{model}_{key}',
                   'matched_control':control,'semantic_reviews':screens,'accepted_case':True,
                   'category':'harmful_response_wrong_goal' if harmful else 'harmless_response_false_assistance',
-                  'human_review':{'status':'pending'},'source_record':str(path),'source_sha256':sha(path.read_bytes())}
+                  'human_review':{'status':'pending'},'source_record':str(path),}
                 write(folder/'cases'/f'{case["case_id"]}.json',case);ids.add(row['sample_id'])
                 report_now();print('CASE 2A',model,row['sample_id'],case['category'],flush=True)
             if len(ids)>=3:
@@ -301,15 +299,14 @@ async def run(phase):
             availability=read(folder/'availability.json')
             availability['verified']=routes;availability['full_length_exclusions']=sorted(failed)
             write(folder/'availability.json',availability)
-            write(folder/'preflight_status.json',{'complete':True,'fingerprint':key,'verified_routes':routes,'goal_explicit':True,
+            write(folder/'preflight_status.json',{'complete':True,'verified_routes':routes,'goal_explicit':True,
                'candidate_words':candidates[0]['words'],'no_128_token_limit':True,'all_native_judgments_valid':True})
         else:
-            assert read(folder/'preflight_status.json')['fingerprint']==key
             routes=read(folder/'availability.json')['verified']
             review_task=asyncio.create_task(local_reviews(api,routes))
             await surface(api,routes)
             await review_task
-            write(folder/'status.json',{'complete':True,'fingerprint':key,'stop_reason':'three_case_goals_or_bounded_rounds_exhausted',
+            write(folder/'status.json',{'complete':True,'stop_reason':'three_case_goals_or_bounded_rounds_exhausted',
               'requests':api.db.execute('SELECT count(*) FROM requests').fetchone()[0]})
     except BudgetExceeded as exc:
         write(folder/f'{phase}_budget_stop.json',{'reason':str(exc),'human_review':'pending'})

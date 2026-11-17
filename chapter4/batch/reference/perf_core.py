@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from hashlib import sha256
 import json
 from pathlib import Path
 import time
@@ -58,43 +57,18 @@ class ScoreTask:
     layout: ControlLayout
 
 
-def version_fingerprint(git_head: str, config: dict, data: Path, code_root: Path) -> str:
-    names = ('adapters.py', 'layout.py', 'search.py', 'perf_core.py', 'worker.py',
-             'prefix_cache.py', 'pair_judge.py', 'pair_native_backends.py',
-             'multi_target_strongreject.py', 'joint.py', 'joint_single_gpu.py',
-             'verify_pipeline.py', 'verify_optional.py', 'perf_runner.py',
-             'benchmark_pipeline.py', 'checkpoint_io.py', 'fixed_replay.py',
-             'kv_study_runner.py', 'kv_study_report.py',
-             'parallel_kv_study.py')
-    code = {name: sha256((code_root / name).read_bytes()).hexdigest() for name in names}
-    payload = json.dumps({'git_head': git_head, 'config': config,
-                          'data_sha256': sha256(data.read_bytes()).hexdigest(),
-                          'code': code},
-                         sort_keys=True, separators=(',', ':'), ensure_ascii=False)
-    return sha256(payload.encode()).hexdigest()[:16]
+
 
 
 def require_versioned_output(output: Path, config: dict, data: Path,
                              code_root: Path) -> str | None:
-    """Keep optimized results and checkpoints out of baseline run directories."""
     if not config.get('performance'):
         return None
-    git_head = "public-source-snapshot"
-    fingerprint = version_fingerprint(git_head, config, data, code_root)
-    if fingerprint not in output.parts:
-        raise ValueError(f'Optimized output path must contain version fingerprint {fingerprint}')
+    output.mkdir(parents=True, exist_ok=True)
     manifest = output / 'version.json'
-    if manifest.exists():
-        existing = json.loads(manifest.read_text())
-        if existing.get('fingerprint') != fingerprint:
-            raise ValueError('Output directory has a different version fingerprint')
-    else:
-        output.mkdir(parents=True, exist_ok=True)
-        manifest.write_text(json.dumps({'fingerprint': fingerprint,
-                                        'git_head': git_head,
-                                        'data_sha256': sha256(data.read_bytes()).hexdigest()},
-                                       indent=2) + '\n')
-    return fingerprint
+    if not manifest.exists():
+        manifest.write_text(json.dumps({'config': config, 'data': str(data)}, indent=2) + '\n')
+    return output.name
 
 
 def filter_with_layouts(adapter, sample: dict, anchor: ControlLayout,

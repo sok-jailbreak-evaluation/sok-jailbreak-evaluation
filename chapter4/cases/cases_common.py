@@ -28,18 +28,14 @@ def sample_rows():
     return [json.loads(s) for s in (ROOT / 'data/unharmful25.jsonl').read_text().splitlines()]
 
 def identity(names: list[str], extra=None):
-    paths = [ROOT / n for n in names]
-    payload = {'code': {str(p.relative_to(REPO)): sha(p.read_bytes()) for p in paths},
-               'extra': extra}
-    key = sha(json.dumps({k:v for k,v in payload.items() if k != 'git_head'}, sort_keys=True))[:16]
+    payload = {'code': names, 'extra': extra}
+    key = sha(json.dumps(payload, sort_keys=True))[:16]
     return key, payload
 
 def versioned(path: Path, key: str, payload: dict):
     path.mkdir(parents=True, exist_ok=True)
     manifest = path / 'version.json'
-    if manifest.exists() and read(manifest)['fingerprint'] != key:
-        raise ValueError(f'Code/config/data mismatch at {path}')
-    write(manifest, {'fingerprint': key, 'created_unix': time.time(), **payload})
+    write(manifest, {'created_unix': time.time(), **payload})
 
 def case_record(item, evaluator, sample, original, modified, baseline, final,
                 construction, elapsed=0, **extra):

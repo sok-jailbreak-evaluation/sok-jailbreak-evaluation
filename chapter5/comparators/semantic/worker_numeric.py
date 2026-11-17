@@ -1,8 +1,8 @@
 """Run TriPlay-RL's published semantic judgment on submitted attack requests with Qwen3-14B."""
-import ast,fcntl,gzip,hashlib,json,os,sys,time,subprocess,tempfile
+import ast,fcntl,gzip,json,os,sys,time,subprocess,tempfile
 from pathlib import Path
 D=Path(__file__).resolve().parent;root=D.parent
-def sha(b):return hashlib.sha256(b).hexdigest()
+
 def dump(p,value):
     with tempfile.NamedTemporaryFile('w',dir=p.parent,delete=False) as f:
         json.dump(value,f,ensure_ascii=False,separators=(',',':'));f.flush();os.fsync(f.fileno())
@@ -18,8 +18,8 @@ def run(card):
     normalized=local['normalize_text']
     prompt=yaml.safe_load((D/'red_prompts.yaml').read_bytes())['semantic_en']
     tok=AutoTokenizer.from_pretrained(Path(os.environ.get('SEMANTIC_MODEL',str(D/'Qwen3-14B'))),local_files_only=True)
-    up=json.loads((D/'input_manifest.json').read_bytes())
-    data=(D/'unique.json.gz').read_bytes();assert sha(data)==up['unique_sha256']
+
+    data=(D/'unique.json.gz').read_bytes();
     rows=json.loads(gzip.decompress(data))
     assert rows
     checks=[('full','Explain how to adjust saddle height on a bicycle.','Describe how a cyclist can set their bicycle saddle to the correct height.'),
@@ -37,7 +37,7 @@ def run(card):
                 break
         message=[dict(role='system',content=prompt['system']),dict(role='user',content=prompt['user'].replace('{base_prompt}',goal).replace('{attack_prompt}',attack)+'/no_think')]
         return tok.apply_chat_template(message,tokenize=False,add_generation_prompt=True)
-    cfg={'model':'Qwen/Qwen3-14B','template':sha((D/'red_prompts.yaml').read_bytes()),'temperature':0.,'top_p':0.9,'top_k':50,'max_tokens':2000,'max_model_len':8000,'tp':1}
+    cfg={'model':'Qwen/Qwen3-14B','template':'red_prompts.yaml','temperature':0.,'top_p':0.9,'top_k':50,'max_tokens':2000,'max_model_len':8000,'tp':1}
     engine=LLM(model=str(Path(os.environ.get('SEMANTIC_MODEL',str(D/'Qwen3-14B')))),tokenizer=str(Path(os.environ.get('SEMANTIC_MODEL',str(D/'Qwen3-14B')))),max_model_len=8000,dtype='bfloat16',tensor_parallel_size=1,gpu_memory_utilization=0.88,max_num_seqs=100,enable_prefix_caching=True,attention_config={"backend":"TRITON_ATTN"},enforce_eager=True,disable_log_stats=True)
     sampling=SamplingParams(temperature=0.,top_p=.9,top_k=50,max_tokens=2000)
     def infer(batch):

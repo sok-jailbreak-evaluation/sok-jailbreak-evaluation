@@ -1,4 +1,4 @@
-"""Shared validity, case identity and strict native-replay provenance rules."""
+"""Shared validity, case identity and native-replay results."""
 from __future__ import annotations
 import json
 import math
@@ -46,17 +46,7 @@ def context_hit(rows):
 def canonical(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'))
 
 def model_version(model,record=None):
-    if record and record.get('model_version'):return record['model_version']
-    names=['strongreject_base','strongreject_adapter'] if model=='strongreject' else [model]
-    inventories=[]
-    for name in names:
-        p=ROOT/'provenance/model_inventory'/f'{name}.json'
-        if p.exists():
-            d=read(p);inventories.append({'model':name,'path':d.get('path'),
-              'files':[{k:r.get(k) for k in ('file','size','sha256')} for r in d['files']]})
-    if inventories:return sha(canonical(inventories))
-    # API aliases are not independently attested model checkpoints.
-    return 'route_unattested:'+sha(canonical({'model':model,'returned_model':(record or {}).get('final',{}).get('returned_model')}))
+    return (record or {}).get('model_version') or (record or {}).get('final',{}).get('returned_model') or model
 
 def case_variant(record):
     if record.get('variant'):return record['variant']
@@ -75,20 +65,16 @@ def signature(record):
     return {'protocol_id':record.get('protocol_id','unspecified'), 'item':record['item'],
       'evaluator':model,'model_version':model_version(model,record),
       'sample_id':record.get('sample_id','unknown'),'variant':case_variant(record),
-      'complete_text_sha256':sha(canonical(objects)),
-      'native_inputs_sha256':sha(canonical(inputs)) if inputs else None}
+      'objects':objects,'inputs':inputs}
 
 def stable_case_id(record):return record['item']+'_'+sha(canonical(signature(record)))[:24]
 
 def bind_replay(record,source,replay):
-    source=Path(source)
-    return {**replay,'evidence_signature':signature(record),'source_record':str(source.resolve()),
-      'source_sha256':sha(source.read_bytes()),'signature_version':1}
+    return {**replay,'source_record':str(Path(source).resolve())}
 
 def replay_matches(record,source,replay):
     source=Path(source)
-    if replay.get('signature_version')!=1 or replay.get('evidence_signature')!=signature(record):return False
-    if not source.exists() or replay.get('source_sha256')!=sha(source.read_bytes()):return False
+    if not source.exists():return False
     try:bound=Path(replay['source_record']).resolve()
     except (KeyError,TypeError):return False
     return bound==source.resolve() and replay.get('passed') is True

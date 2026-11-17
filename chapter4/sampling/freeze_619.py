@@ -37,8 +37,7 @@ def main():
             x=base_record('harmbench_response',f'{behavior_id}:{index}',meta['Behavior'],item['generation'],
                           'unharmful',[semantic,functional],meta.get('ContextString',''))
             x.update(behavior_id=behavior_id,item_index=index,source_row_index=raw_index,
-                test_case=item['test_case'],test_case_sha256=digest(item['test_case']),
-                source_dataset='centerforaisafety/HarmBench',source_split='classifier_val_sets/text_behaviors_val_set',
+                test_case=item['test_case'],source_dataset='centerforaisafety/HarmBench',source_split='classifier_val_sets/text_behaviors_val_set',
                 source_revision=cfg['harmbench_revision'],semantic_category=semantic,functional_category=functional,
                 model=item['model'],method=item['method'],label_scope='goal_conditioned_harmful_behavior_success',
                 label_source='three_human_votes_majority',native_label=0,response_harm_label=None,
@@ -59,8 +58,7 @@ def main():
         else:
             x=base_record('jailbreakbench_response',f'row-{index:04d}',item['goal'],item['target_response'],
                           'unharmful',['no_official_category'])
-            x.update(source_row_index=index,original_index=item['Index'],test_case=item['prompt'],test_case_sha256=digest(item['prompt']),
-                source_dataset='JailbreakBench/JBB-Behaviors',source_configuration='judge_comparison',source_split='test',
+            x.update(source_row_index=index,original_index=item['Index'],test_case=item['prompt'],source_dataset='JailbreakBench/JBB-Behaviors',source_configuration='judge_comparison',source_split='test',
                 source_revision=cfg['jailbreakbench_revision'],native_label=0,human_votes=[int(item[f'human{i}']) for i in range(1,4)],
                 native_human_majority=int(item['human_majority']),label_source='three_human_votes_verified_published_majority',
                 label_scope='goal_conditioned_jailbreak_success',response_harm_label=None,
@@ -82,7 +80,7 @@ def main():
             'source_row_index':x.get('source_row_index'),'search_seed_index':index,'evaluator_index':0,
             'base_seed':42,'first_proposal_seed':42+index*100003,
             'candidate_seed_formula':'42 + search_seed_index*100003 + zero_based_step*1009; evaluator_index=0',
-            'input_pair_sha256':x['input_pair_sha256']})
+            'input_pair_id':digest({'prompt':x['prompt'],'response':x['response'],'context':x.get('context','')})})
     # Preserve the exact bytes and order of the original queue as the first300.
     combined=old_path.read_bytes()+as_jsonl(added).encode()
     files={'unharmful_up.jsonl':combined,'original_300.jsonl':old_path.read_bytes(),
@@ -91,11 +89,10 @@ def main():
         files[f'{ds}/unharmful.jsonl']=as_jsonl([x for x in rows if x['dataset_id']==ds]).encode()
     manifest={'schema_version':1,'total':619,'counts':dict(Counter(x['dataset_id'] for x in rows)),
         'original_300_count':300,'new_319_count':319,'new_counts':dict(Counter(x['dataset_id'] for x in added)),
-        'old300_sha256':digest(old_path.read_bytes()),'data_sha256':digest(combined),
         'original300_retained_byte_for_byte':True,'original300_retained_order':True,
         'restored_missing_harmbench_negatives':restored,'recovery':recovery,
-        'source_files':{str(p.relative_to(REPO)):digest(p.read_bytes()) for p in [old_path,hb_path,main_meta,jbb_path,recovery_path]},
-        'files':{k:{'sha256':digest(v),'bytes':len(v)} for k,v in files.items()},
+        'source_files':[str(p.relative_to(REPO)) for p in [old_path,hb_path,main_meta,jbb_path,recovery_path]],
+        'files':{k:{'bytes':len(v)} for k,v in files.items()},
         'mapping':'mapping.jsonl','sampling':'WG retains exact original100; HB and JBB take all majority-negative records, no model score filtering',
         'label_scopes':{d:sorted({x['label_scope'] for x in rows if x['dataset_id']==d}) for d in {x['dataset_id'] for x in rows}},
         'rng':'old source_row_index or original frozen300 position retained; new source row index frozen; evaluator_index0',
@@ -103,8 +100,7 @@ def main():
     for name,content in files.items():frozen_write(out/name,content)
     frozen_write(out/'manifest.json',as_json(manifest))
     print(json.dumps({'data':str((out/'unharmful_up.jsonl').resolve()),'manifest':str((out/'manifest.json').resolve()),
-        'counts':manifest['counts'],'new_counts':manifest['new_counts'],'data_sha256':manifest['data_sha256'],
-        'restored':restored,'mapping':str((out/'mapping.jsonl').resolve())},ensure_ascii=False,indent=2))
+        'counts':manifest['counts'],'new_counts':manifest['new_counts'],'restored':restored,'mapping':str((out/'mapping.jsonl').resolve())},ensure_ascii=False,indent=2))
 
 
 if __name__=='__main__':main()

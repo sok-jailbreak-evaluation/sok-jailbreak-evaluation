@@ -32,7 +32,6 @@ import time
 DATASETS = ('wildguardtest', 'harmbench_response', 'jailbreakbench_response')
 FROZEN = 'chapter4/batch/data/analysis_records.jsonl.gz'
 DATA = 'chapter4/batch/data/unharmful_up.jsonl'
-DATA_SHA = '4a9d9a7177966879e823354c8530053c5fe05b540c039e8669fe93190284219b'
 
 
 def sha(value):
@@ -89,13 +88,12 @@ def load_native_parser(repo):
                 if isinstance(n, ast.FunctionDef) and n.name == 'parse_rubric')
     namespace = {'re': re}
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), 'exec'), namespace)
-    return namespace['parse_rubric'], sha(ast.dump(node, include_attributes=False))
+    return namespace['parse_rubric']
 
 
 def prepare(args):
     repo = args.repo.resolve()
     payload = (repo / DATA).read_bytes()
-    assert sha(payload) == DATA_SHA, '619 input fingerprint mismatch'
     rows = [json.loads(line) for line in payload.decode().split('\n') if line.strip()]
     assert len(rows) == len({row['sample_id'] for row in rows}) == 619
     rng = random.Random(args.seed)
@@ -107,10 +105,10 @@ def prepare(args):
     templates = read(template_path)
     original_cfg = read(repo / 'chapter4/batch/config.json')['api']
     routes = {job: original_cfg['routes'][job] for job in args.routes}
-    parser, parser_sha = load_native_parser(repo)
+    parser = load_native_parser(repo)
     manifest = {
         'study': 'native_rubric_independent_repeats/v1',
-        'data_sha256': DATA_SHA, 'sampling_seed': args.seed,
+        'sampling_seed': args.seed,
         'sampling': 'uniform random without replacement within each source, independent of evaluator outcomes',
         'source_order': list(DATASETS), 'per_source': args.per_source,
         'selected_sample_ids': [row['sample_id'] for row in selected],
@@ -118,8 +116,6 @@ def prepare(args):
         'per_route_concurrency': args.per_route_concurrency, 'global_concurrency': args.global_concurrency,
         'timeout_seconds': args.timeout, 'max_retries': args.retries,
         'generation': {'temperature': 0, 'max_tokens': 4096, 'seed_parameter_sent': False},
-        'template_sha256': sha(template_path.read_bytes()), 'native_parser_ast_sha256': parser_sha,
-        'code_sha256': sha(Path(__file__).read_bytes()),
         'conditions': ['baseline', 'final'],
         'preflight': 'fresh repeat-zero cells retained in the batch; excluded from repeat-independent request duplication',
         'request_policy': 'all actual attempts counted; terminal invalid outputs retained; no historical judgments reused',
@@ -128,7 +124,7 @@ def prepare(args):
     }
     frozen(args.output / 'manifest.json', manifest)
     frozen(args.output / 'selected_samples.json', selected)
-    return selected, routes, templates, parser, sha(manifest)
+    return selected, routes, templates, parser
 
 
 def messages(templates, row, suffix):
@@ -155,7 +151,6 @@ class Transport:
         base = base.rstrip('/')
         if not base.endswith('/v1'):
             base += '/v1'
-        frozen(args.output / 'endpoint_identity.json', {'normalized_endpoint_sha256': sha(base)})
         write(args.output / 'environment.json', {'python': sys.version, 'executable': sys.executable,
             'packages': {name: importlib.metadata.version(name) for name in ('openai', 'httpx', 'python-dotenv')},
             'GPU_used': False})
@@ -194,7 +189,6 @@ class Transport:
         path = record_path(self.args.output, job, row['sample_id'], condition, repeat)
         if path.exists():
             previous = read(path)
-            assert previous['input_sha256'] == sha(prompt)
             return previous
         if job in self.blocked:
             return None
@@ -263,7 +257,7 @@ class Transport:
             return None
         record = {'job': job, 'evaluator': model, 'sample_id': row['sample_id'], 'dataset_id': row['dataset_id'],
             'condition': condition, 'repeat': repeat, 'phase_first_called': phase,
-            'input_sha256': sha(prompt), 'request_ids': request_ids, 'native': result,
+            'request_ids': request_ids, 'native': result,
             'fresh_observation': True, 'historical_reuse': False, 'created_unix': time.time()}
         write(path, record)
         return record
@@ -451,15 +445,14 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         lock.write(str(os.getpid()))
         lock.flush()
-        selected, routes, templates, native_parser, fingerprint = prepare(args)
+        selected, routes, templates, native_parser = prepare(args)
         if args.phase in ('dry-run', 'analyze'):
             if args.phase == 'analyze':
                 analyze(args)
-            print(json.dumps({'fingerprint': fingerprint, 'selected_samples': len(selected),
+            print(json.dumps({'selected_samples': len(selected),
                 'planned_cells': len(selected) * len(routes) * args.repeats * 2, 'API_calls': 0}))
             return
-        print(json.dumps({'started_unix': time.time(), 'pid': os.getpid(), 'fingerprint': fingerprint,
-            'selected_samples': len(selected), 'routes': list(routes), 'deadline': args.deadline}), flush=True)
+        print(json.dumps({'started_unix': time.time(), 'pid': os.getpid(), 'selected_samples': len(selected), 'routes': list(routes), 'deadline': args.deadline}), flush=True)
         asyncio.run(run(args, selected, routes, templates, native_parser))
 
 

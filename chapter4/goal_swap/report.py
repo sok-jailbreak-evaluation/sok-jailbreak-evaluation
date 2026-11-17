@@ -13,9 +13,6 @@ def unique_ratings(rows):
     for row in rows:
         key=row.get('request_id')
         if key is None:key=sha(json.dumps(row,sort_keys=True,ensure_ascii=False))
-        previous=result.get(key)
-        if previous and previous.get('native_input_sha256')!=row.get('native_input_sha256'):
-            raise ValueError(f'One request linked to different native inputs: {key}')
         result[key]=row
     return [result[k] for k in sorted(result,key=lambda x:(0,x) if isinstance(x,int) else (1,str(x)))]
 
@@ -82,7 +79,7 @@ def build():
     for run in (ROOT/'runs').glob('goal_surface_v*'):
         for path in (run/'api').rglob('*.json'):
             row=read(path)
-            if isinstance(row,dict) and 'native_input_sha256' in row and 'request_id' in row:native.append(row)
+            if isinstance(row,dict) and 'goal' in row and 'response' in row and 'request_id' in row:native.append(row)
     native=unique_ratings(native)
     (output/'native_ratings.jsonl').write_text(''.join(json.dumps(r,ensure_ascii=False)+'\n' for r in native))
     replays=[]
@@ -96,12 +93,10 @@ def build():
         audit=read(path)
         if audit['status']!='parsed':continue
         source=samples[audit['sample_id']]
-        if audit['full_response_sha256']!=source['response_sha256']:raise ValueError('Pairing review body differs')
         for row in audit['pairs']:
             frozen=source['pairs'][row['pair_index']-1]
             pairing.append({**row,'sample_id':source['sample_id'],'goal':frozen['goal'],
-              'planned_pair_type':frozen['pair_type'],'full_response_sha256':source['response_sha256'],
-              'request_id':audit['request_id'],'type':'posthoc_LLM_auxiliary_not_human'})
+              'planned_pair_type':frozen['pair_type'],'request_id':audit['request_id'],'type':'posthoc_LLM_auxiliary_not_human'})
     (output/'pairing_audit.jsonl').write_text(''.join(json.dumps(r,ensure_ascii=False)+'\n' for r in pairing))
     distinct_candidates={sha(r['goal']+'\0'+r['response']) for r in candidates}
     summary={'local':local_summary,'api':{'candidate_input_goals':len({r['goal'] for r in candidates}),

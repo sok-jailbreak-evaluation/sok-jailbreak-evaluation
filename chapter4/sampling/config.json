@@ -23,7 +23,6 @@
     "run_harmful_down": false
   },
   "wildguard_source": "../../wildguard_test.parquet",
-  "wildguard_source_sha256": "6ccc2909c1ae6d41424fac69f1fc32535b1de39cb8f80407d81e8bc64a0bebca",
   "harmbench_revision": "8e1604d1171fe8a48d8febecd22f600e462bdcdd",
   "harmbench_scope": "official text_behaviors_val_set.json only; not multimodal or behavior-only data",
   "harmbench_label": "int(human_0 + human_1 + human_2 >= 2)",
@@ -43,8 +42,6 @@
   },
   "xstest_revision": "4cd03695944eb5940c5a2dfcdf2a493a8f288dbc",
   "xstest_split": "response_harmfulness",
-  "xstest_source_sha256": "4a310a814efea5eae5f260326354cd66ae2e8521d71469ba328750e6188cbf3b",
-  "xstest_refusal_source_sha256": "424add7bdff0f9192efd3e818b0afec3e38f18aa430f9233c8a55f4f75c95395",
   "xstest_actual_source_revision": null,
   "historical_dataset_ids": [
     "xstest_response"

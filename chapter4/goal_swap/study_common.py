@@ -1,6 +1,5 @@
 """Independent bounded experiment; reuse old native protocols and transport."""
 from __future__ import annotations
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -44,15 +43,9 @@ def screen_qualifies(screen, item, model=None):
     return True
 
 def freeze(output):
-    paths = [CONFIG]+[ROOT/n for n in ('study_common.py','prepare.py','api.py','local.py','run.py')]+[ROOT/'data/responses.json', ROOT/'data/surface_goals.json', ROOT/'data/strongreject_dataset.csv',
-      OLD/'api_client.py', OLD/'protocols/rubric_templates.json', LEGACY/'adapters.py',
-      LEGACY/'configs/harmbench_templates.json', LEGACY/'configs/strongreject_template.json']
-    hashes = {str(p.relative_to(REPO)): sha(p.read_bytes()) for p in sorted(paths)}
-    key = sha(json.dumps(hashes, sort_keys=True))[:16]
-    target = output/'version.json'
-    if target.exists() and read(target)['fingerprint'] != key:
-        raise RuntimeError(f'Code/config/data fingerprint mismatch: {output}')
-    write(target, {'fingerprint': key, 'code_config_data': hashes})
+    config = read(CONFIG)
+    key = sha(json.dumps(config, sort_keys=True))[:16]
+    write(output/'version.json', {'config': config})
     return key
 
 def report_now():

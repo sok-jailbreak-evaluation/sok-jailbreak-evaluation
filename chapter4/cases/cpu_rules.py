@@ -6,7 +6,7 @@ import io
 from pathlib import Path
 import time
 from types import SimpleNamespace
-from cases_common import ROOT, LEGACY, read, write, sha, sample_rows, case_record
+from cases_common import ROOT, LEGACY, read, write, sample_rows, case_record
 
 SOURCE=ROOT/'references/llm-attacks/llm_attacks/base/attack_manager.py'
 
@@ -33,8 +33,7 @@ def main(phase='full'):
     out=ROOT/'runs/lexical_checks'/phase;out.mkdir(parents=True,exist_ok=True)
     prefixes,_=upstream_rules()
     rows=list(csv.DictReader((ROOT/'data/harmful_behaviors.csv').open()))
-    manifest={'source':str(SOURCE),'sha256':sha(SOURCE.read_bytes()),
-      'upstream_commit':'098262edf85f807224e70ecd87b9d83716bf6b73',
+    manifest={'source':str(SOURCE),'upstream_commit':'098262edf85f807224e70ecd87b9d83716bf6b73',
       'object':'generated completion string after strip()',
       'test_prefixes':prefixes,'refusal_check':'not any(prefix in gen_str for prefix in self.test_prefixes)',
       'word_check':'self.target in gen_str; case sensitive',

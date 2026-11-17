@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -8,8 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 
 
-def sha256(value: str | bytes) -> str:
-    return hashlib.sha256(value.encode('utf-8') if isinstance(value, str) else value).hexdigest()
+
 
 
 def read_json(path: Path):
@@ -36,11 +34,7 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
     os.replace(temporary, path)
 
 
-def fingerprint(config: dict, data: Path, mode: str) -> str:
-    code = {name: sha256((ROOT / name).read_bytes()) for name in
-            ['common.py', 'layout.py', 'adapters.py', 'search.py', 'worker.py']}
-    return sha256(json.dumps({'config': config, 'data_sha256': sha256(data.read_bytes()),
-                             'mode': mode, 'code_sha256': code}, sort_keys=True))
+
 
 
 def tupleize(value):
