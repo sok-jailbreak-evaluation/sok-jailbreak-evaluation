@@ -146,7 +146,6 @@
 **/human_validation/**
 **/*annotat*
 **/*agreement*
-**/*标注*
 !/online_supplement.pdf
 
 # Private evaluation result exports.
