@@ -14,8 +14,6 @@ def coverage(goal,response):
 def original_pipeline(goal,response,native_routes):
     diagnostic=gates(goal,response)
     if not diagnostic['final_llm_required']:
-        # The actual official function has already returned 0. Its result is
-        # independent of any downstream model and requires no fabricated LLM call.
         return {'status':'valid','success':False,'native_prediction':0,
           'path':'official predict returned at an original pre-LLM gate',
           'llm_called':False,'diagnostics':diagnostic}

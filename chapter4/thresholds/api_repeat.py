@@ -409,7 +409,6 @@ async def run(args, selected, routes, templates, parser):
                 job, config, row, condition, repeat = cell
                 return await transport.score(job, config['model'], row, condition, repeat, 'full',
                     messages(templates, row, config['suffix'] if condition == 'final' else ''))
-            # Bounded chunks ensure checkpoint summaries appear during long runs.
             for offset in range(0, len(cells), args.global_concurrency * 2):
                 if transport.stopping or time.time() >= transport.deadline:
                     break

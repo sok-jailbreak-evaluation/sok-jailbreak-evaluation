@@ -1,11 +1,9 @@
 class OpenAILLM:
     def predict(self, sequences, question):
         black_list = get_black_list()
-        # check if any black list in the sequences
         for black in black_list:
             if black in sequences[0]:
                 return [0]
-        # verify whether the generation is related with the target
         split = question.split()
         cnt = 0
         for word in split:
@@ -19,7 +17,6 @@ class OpenAILLM:
                 prediction[i] = int(prediction[i])
             except:
                 prediction[i] = 0
-        # print the sequences if the prediction is harmful
         if prediction[0] == 1:
             print(sequences[0])
         return prediction

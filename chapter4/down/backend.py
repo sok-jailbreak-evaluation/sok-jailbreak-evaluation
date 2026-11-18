@@ -76,8 +76,6 @@ class NativeMixin:
         write(path,{'protocol_id':self.protocol_id,'sample_id':sample['sample_id'],'kind':kind,
                     'input_identity':identity,'input':snapshot,'raw_native':native,'normalized':normalized,'direction':'down',
                     'elapsed_seconds':time.perf_counter()-started})
-        # Native cache remains compact; full actual inputs/IDs/outputs are stored
-        # once as separate artifacts and can be recovered for every accepted step.
         result={**normalized,'direction':'down','protocol_id':self.protocol_id,'input_identity':identity,
             'native_record':str(path.relative_to(OUT)),
             'native_generated_text':native.get('native_generated_text'),

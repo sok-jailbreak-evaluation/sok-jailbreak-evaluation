@@ -1,4 +1,3 @@
-# Only explicitly listed source files belong in the submission.
 *
 !/chapter4/
 !/chapter5/
@@ -141,13 +140,11 @@
 !/chapter5/verification_counts.py
 !/requirements.txt
 
-# Private human annotation artifacts must not be published.
 /human_validation/
 **/human_validation/**
 **/*annotat*
 **/*agreement*
 !/online_supplement.pdf
 
-# Private evaluation result exports.
 /aspect_results/
 **/aspect_results/**

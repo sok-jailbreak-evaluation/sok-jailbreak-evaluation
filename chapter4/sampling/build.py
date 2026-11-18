@@ -243,7 +243,6 @@ def load_sources(dataset, cfg):
 def build(datasets, output, per_label=100, seed=42, allow_shortfall=False):
     cfg = read(ROOT / "config.json")
     selected, manifests = {}, {}
-    # Validate every requested pool before creating any final outputs.
     for dataset in datasets:
         rows, excluded, sources = load_sources(dataset, cfg)
         samples, allocations = sample_balanced(rows, per_label, seed, dataset, allow_shortfall)

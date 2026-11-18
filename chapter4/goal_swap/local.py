@@ -70,8 +70,6 @@ def run(model_name, phase):
             print(model_name,phase,'response',index+1,'/',limit,flush=True)
         if phase=='preflight': break
         write(out/'stage.json',{'scored_up_to':limit,'awaiting_semantic_decision':True,})
-        # Persisted API lane reviews whole replies. It can stop this lane after
-        # three distinct replies or authorize the bounded 200-reply extension.
         while True:
             if (out/'decision.json').exists():
                 decision=read(out/'decision.json')

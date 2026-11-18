@@ -114,8 +114,6 @@ async def api(phase):
         await asyncio.gather(*tasks)
         for job in CONF['api']['routes']:
             rows=pending(job,'preflight') if phase=='preflight' else []
-            # Preflight writes directly reusable pair results. Count the actual
-            # new inputs that were scored through this entry, not past successes.
             actual=[read(p) for p in (OUT/job/'records').glob('*.json')]
             new=[r for r in actual if not r.get('reuse',{}).get('historical')]
             passed=any(not r.get('failed') for r in new) and job not in blocked

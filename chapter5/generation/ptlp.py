@@ -13,7 +13,6 @@ class MappingPtlp:
         self.alphabet = string.ascii_lowercase
 
         if key is None:
-            # Default mapping for the pseudo time-lock puzzle
             self.key = "ywxzphjcvltqrbsmkiagfudeon"
         else:
             if len(key) != 26 or len(set(key)) != 26:
@@ -24,7 +23,6 @@ class MappingPtlp:
                 raise ValueError("Mapping key must contain only lowercase letters")
             self.key = key
 
-        # Create puzzle mapping dictionaries
         self.encode_map = dict(zip(self.alphabet, self.key))
         self.decode_map = dict(zip(self.key, self.alphabet))
 
@@ -96,9 +94,7 @@ class MappingPtlp:
         return self.key
 
 
-# Example usage
 if __name__ == "__main__":
-    # Using default mapping
     puzzle = MappingPtlp()
     print(f"Prefix: {puzzle.prefix}\n")
     print(f"Description: {puzzle.description}\n")

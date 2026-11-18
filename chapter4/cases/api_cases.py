@@ -163,7 +163,6 @@ async def run(output):
         versioned(output/'cases',key,payload)
         study=Study(api,available)
         ordered=list(dict.fromkeys([m for m in ('gemini-3.8-flash-high','gpt-6.1-sol','claude-sonnet-4-6') if m in available]+available))
-        # Small same-entry preflight before the formal search budget.
         await asyncio.gather(*(study.problem_model(item,ordered[0],'preflight') for item in ('1A','1B')))
         for item in ('1A','1B'):
             probe=read(output/'cases/preflight'/item/ordered[0]/f'{sample_rows()[0]["sample_id"]}.json')

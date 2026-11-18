@@ -109,7 +109,6 @@ In these examples, the RESPONSE acknowledges or entertains the request but gives
 def process_parquet_to_dict(parquet_path, column_name, dummy_load=False):
     start_time = time.time()
     if dummy_load:
-        # Use it, if the functionality not related to N-LM is required
         df = dd.read_parquet(parquet_path, engine="pyarrow").head(100000)
     else:
         df = dd.read_parquet(parquet_path, engine="pyarrow")
@@ -135,7 +134,6 @@ class Filter:
         seed=0
     ):
 
-        # Set seeds for reproducibility
         torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
@@ -314,7 +312,7 @@ class Filter:
             selected_bigram = random.choices(self.bigram_ids, weights=self.bigram_counts, k=1)[0]
             print('selected_bigram', selected_bigram, type(selected_bigram))
             token_array[idx : idx + 2] = (
-                selected_bigram  # Replace two tokens with the selected bigram
+                selected_bigram
             )
             """
             special_token_ids = list(tokenizer.all_special_ids)
@@ -352,12 +350,10 @@ class Filter:
                 print(f"Input text passes the filter after {attempt + 1} attempts.")
                 return token_array
 
-            # Collect indices of windows not passing the threshold
             failing_windows = [
                 i for i, value in enumerate(metrics_dict[metric_name]) if value < threshold
             ]
 
-            # Collect token indices within the failing windows
             failing_indices = set()
             for window_start in failing_windows:
                 failing_indices.update(range(window_start, window_start + window_size))
@@ -371,11 +367,9 @@ class Filter:
                 print("Is consistent:", is_consistent)
                 return token_array
 
-            # Randomly sample from failing indices
             sampled_idx = np.random.choice(list(failing_indices))
 
             original_array = token_array
-            # token_array[sampled_idx] = mutate_token(token_array, sampled_idx, self.tokenizer)
             if sampled_idx == len(token_array) - 1:
                 sampled_idx -= 1
             print('TOKENS before mutate', token_array)
@@ -405,28 +399,23 @@ class Filter:
         decoded = self.tokenizer.decode(tokens, add_special_tokens=False)
         reencoded = self.tokenizer(decoded, add_special_tokens=False)["input_ids"]
 
-        # Determine if the tokens are consistent
         is_consistent = tokens == reencoded
 
         if print_inconsistent:
-            # Initialize an empty list to store indices of inconsistent tokens
             inconsistent_indices = []
 
-            # Check consistency of each token up to the minimum length of both token lists
             min_length = min(len(tokens), len(reencoded))
             for i in range(min_length):
                 if tokens[i] != reencoded[i]:
                     inconsistent_indices.append(i)
 
             if len(inconsistent_indices) > 0:
-                # Handle cases where the lengths are different
                 if len(tokens) != len(reencoded):
                     # Add remaining indices as inconsistent from the longer list
                     longer_length = max(len(tokens), len(reencoded))
                     inconsistent_indices.extend(range(min_length, longer_length))
 
                 inconsistent_tokens = []
-                # Collect pairs of inconsistent tokens using the stored indices
                 for idx in inconsistent_indices:
                     # Check bounds as the lists can be of different lengths
                     original_token = tokens[idx] if idx < len(tokens) else "None"
@@ -471,19 +460,14 @@ class Filter:
         if len(token_window) == 0:
             return float("inf"), 0  # Return infinite perplexity for an empty window
 
-        # Create bigrams from the token window
         bigrams = [(token_window[i - 1], token_window[i]) for i in range(1, len(token_window))]
 
-        # Create unigrams for all tokens, including the first token for its own probability
         unigrams = [(token_window[i - 1],) for i in range(1, len(token_window))]
-        # print(bigrams, unigrams)
-        # Calculate probabilities for bigrams
         bigram_probs = [
             smooth_ngram_probability(self.bigrams, b, self.total_bigrams, self.num_unique_bigrams)
             for b in bigrams
         ]
 
-        # Calculate probabilities for unigrams
         unigram_probs = [
             smooth_ngram_probability(
                 self.unigrams, u, self.total_unigrams, self.num_unique_unigrams
@@ -491,13 +475,10 @@ class Filter:
             for u in unigrams
         ]
 
-        # Compute conditional probabilities for each bigram based on its preceding unigram
         conditional_probs = [
             bp / up for bp, up in zip(bigram_probs, unigram_probs)
         ]  # Exclude the last unigram, which has no following bigram
-        # print(bigram_probs, unigram_probs, conditional_probs)
 
-        # Calculate perplexity
         if conditional_probs:
             total_log_prob = np.sum(np.log(conditional_probs))
             # Add the log probability of the first unigram to start the chain properly
@@ -507,10 +488,8 @@ class Filter:
             # Only one word, use its probability directly to estimate perplexity
             perplexity = np.exp(-np.log(unigram_probs[0]))
 
-        # Calculate entropy of the token window
-        # entropy = calculate_entropy(token_window)
 
-        return perplexity, None  # , entropy
+        return perplexity, None
 
     def apply_filter(
         self,
@@ -573,7 +552,6 @@ class Filter:
         if isinstance(tokens[0], list):
             tokens = tokens[0]
 
-        # Apply selective slicing based on provided indexes
         if select_from is not None or select_to is not None:
             tokens = tokens[slice(select_from, select_to)]
 
@@ -600,7 +578,6 @@ class Filter:
             tokens = random.choices(self.bigram_ids, weights=self.bigram_counts, k=num_samples)
         else:
             tokens = random.choices(self.bigram_ids, k=num_samples)
-        # unwrap tuples
         return [item for sublist in tokens for item in sublist]
 
 def smooth_ngram_probability(dict_used, ngram, counts_all, num_ngrams, smoothing="laplace"):

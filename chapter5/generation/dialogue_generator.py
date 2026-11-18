@@ -4,7 +4,6 @@ import textwrap
 from openai import OpenAI
 import re
 
-# Attack sequence generator
 class ResponseAttackGenerator:
     """
     Input: a harmful query (Q_Harmful).
@@ -50,9 +49,7 @@ class ResponseAttackGenerator:
             print("[Warning] One or more required templates failed to load.")
         elif not self.client:
              print("[Warning] OpenAI client not initialized; LLM calls will fail.")
-        # Summarization support removed
         print("--- Initialization complete ---")
-    # Prepare response context for Prompt_2 (no summarization)
     def _prepare_response_context(self, original_query: str, prompt1_base: str, response_text: str) -> str:
         return response_text
         
@@ -63,7 +60,6 @@ class ResponseAttackGenerator:
         with open(filepath, 'r', encoding='utf-8') as f:
             return f.read()
         
-    # Remove reasoning chain tags from response
     def _split_response(self, raw: str) -> str:
         """
         1) Remove complete <think>...</think> or <reason>...</reason> blocks.
@@ -74,7 +70,6 @@ class ResponseAttackGenerator:
         cleaned = re.sub(r'^.*?</(?:think|reason)>', '', cleaned, flags=re.DOTALL)
         return cleaned.strip()
 
-    # Extract chain-of-thought from response (without tags)
     def _extract_chain(self, raw: str) -> str:
         """Return the first <think>...</think> or <reason>...</reason> content; if only a closing tag exists, take content up to it; else empty string."""
         m = re.search(r'<(?:think|reason)>(.*?)</(?:think|reason)>', raw, flags=re.DOTALL)
@@ -86,7 +81,6 @@ class ResponseAttackGenerator:
             return m2.group(1).strip()
         return ''
     
-    # Call LLM
     def _call_llm_api(self, prompt: str, task_description: str) -> str | None:
         print(f"\n--- [Real call] Calling LLM API, task: {task_description} (prompt chars: {len(prompt)}) ---")
         try:
@@ -109,7 +103,6 @@ class ResponseAttackGenerator:
             print("[Error] Prompt_1 template not loaded or failed to load.")
             return None
         try:
-            # Fill template
             input_prompt_for_p1 = self.prompt1_template.format(query=original_query)
             prompt1_base = self._call_llm_api(input_prompt_for_p1, "Generate Base Prompt_1 (Sanitization)")
             return prompt1_base if prompt1_base else None
@@ -120,7 +113,6 @@ class ResponseAttackGenerator:
             print(f"[Error] Exception during Prompt_1 generation: {e}")
             return None
 
-    # Generate intermediate response using LLM
     def _generate_response(self,
                            prompt1_base: str,
                            original_query: str,
@@ -139,7 +131,6 @@ class ResponseAttackGenerator:
             print(f"[Error] Exception during response generation: {e}")
             return None
     
-    # Generate Prompt_2 using template and LLM
     def _generate_prompt2(self, original_query: str, prompt1_base: str, response: str, attack_type: str) -> str | None:
         """Generate Prompt_2 using base prompt1 and the response as context."""
         if attack_type not in self.prompt2_templates:
@@ -147,13 +138,11 @@ class ResponseAttackGenerator:
             return None
         template = self.prompt2_templates[attack_type]
         try:
-            # Fill template using base prompt1 (without suffix)
             input_prompt_for_p2 = template.format(
                 query=original_query,
                 prompt1=prompt1_base,
                 response=response
             )
-            # Call LLM API to generate Prompt_2
             prompt2 = self._call_llm_api(input_prompt_for_p2, f"Generate Prompt_2 ({attack_type} context)")
             return prompt2 if prompt2 else None
         except KeyError as e:
@@ -166,13 +155,11 @@ class ResponseAttackGenerator:
     def generate_attack_json(self, original_query: str, attack_type: str) -> dict | None:
         """Generate the full attack sequence as a JSON-like dict."""
         print(f"\n=== Start generating attack sequence (type: {attack_type}) ===")
-        # Pre-checks remain unchanged
         if not self.client or not self.prompt1_template or attack_type not in self.prompt2_templates:
              print(f"[Error] Cannot continue; client or required templates not loaded (P1, P2 for {attack_type}).")
              return None
 
 
-        # Step 1: generate base Prompt_1
         prompt1_raw = self._generate_prompt1(original_query)
         if prompt1_raw is None:
             print("[!] Failed at Prompt_1 stage.")
@@ -180,30 +167,24 @@ class ResponseAttackGenerator:
         prompt1_base = self._split_response(prompt1_raw)
         print(f"\n[1] Generated base Prompt_1 (chars: {len(prompt1_base)})")
 
-        # Step 2: generate raw response (may contain chain-of-thought tags)
         raw_response = self._generate_response(prompt1_base, original_query, attack_type)
         if raw_response is None:
             print("[!] Failed at Response stage.")
             return None
         print(f"\n[2] Generated raw response (type {attack_type}) (chars: {len(raw_response)})")
 
-        # Step 2.1: clean response (remove chain-of-thought tags)
         cleaned_response = self._split_response(raw_response)
         print(f"\n[2.1] Cleaned response (chars: {len(cleaned_response)})")
 
-        # Step 2.2: prepare response context (no summarization)
         response_for_p2_context = self._prepare_response_context(original_query, prompt1_base, cleaned_response)
         print(f"\n[2.2] Prepared response context for P2.")
 
-        # Step 3: generate Prompt_2
         prompt2 = self._generate_prompt2(original_query, prompt1_base, response_for_p2_context, attack_type)
-        # Note: _generate_prompt2 will be cleaned by _split_response
         if prompt2 is None:
             print("[!] Failed at Prompt_2 stage.")
             return None
         print(f"\n[3] Generated Prompt_2 ({attack_type}) (chars: {len(prompt2)})")
         prompt2 = self._split_response(prompt2)
-        # Build final JSON (store cleaned response for round 1)
         attack_type_alias = 'dri' if attack_type == 'type1' else ('sri' if attack_type == 'type2' else attack_type)
         output_json = {
             "originalHarmfulQuery": original_query,
@@ -212,7 +193,7 @@ class ResponseAttackGenerator:
             "rounds": [
                 {
                     "roundIndex": 1,
-                    "roundType": "spoof", # or setup
+                    "roundType": "spoof",
                     "promptParts": [{"type": "text", "text": prompt1_base}],
                     "response": cleaned_response
                 },

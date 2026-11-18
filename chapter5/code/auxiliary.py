@@ -106,7 +106,6 @@ class Scorer:
         self.tokenizer = AutoTokenizer.from_pretrained(self.path, local_files_only=True,
                                                        use_fast=True, legacy=False)
         if name == 'parden':
-            # The prior native PARDEN run uses the default legacy tokenizer behavior.
             self.tokenizer = AutoTokenizer.from_pretrained(self.path, local_files_only=True)
             self.tokenizer.padding_side = 'left'
             self.tokenizer.pad_token = self.tokenizer.unk_token
@@ -246,7 +245,6 @@ def run(args):
     with (args.out / '.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         manifest_path = args.out / 'manifest.json'
-        # JSON normalizes the tuple model specification into a list.
         manifest = json.loads(json.dumps(manifest))
         if manifest_path.exists():
             if json.loads(manifest_path.read_text()) != manifest:

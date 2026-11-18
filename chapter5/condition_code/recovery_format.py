@@ -28,7 +28,6 @@ def make_api_class(p, d):
     class SingleRequestAPI(d.API):
         def __init__(self, args):
             super().__init__(args)
-            # Base call 1 succeeded with the original initial parameter; no probe needed.
             self.token_parameter = "max_completion_tokens"
 
         async def request(self, stage, identity, prompt, data, validator, max_tokens):
@@ -209,7 +208,6 @@ async def recover_one(args, p, d, api, base_result, sample):
     if stage == "verification" and review_required:
         if api is None:
             return
-        # This is the original, not-yet-used single discrepancy review, not an extra round.
         prompt = p.REVIEW_PROMPT + ("\n" + p.COUNTEREVIDENCE_INSTRUCTION if counter else "")
         review_data = {**data, "first_assessment": first, "independent_verification": verified,
                        "discrepancies": combined["consistency_issues"]}

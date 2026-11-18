@@ -51,8 +51,6 @@ def flat_record(record):
     baseline = record.get('baseline_native' if job == 'strongreject' else 'baseline') or {}
     final = record.get('final_native' if job == 'strongreject' else 'final') or {}
     bv, av = side_valid(job, baseline), side_valid(job, final)
-    # Terminal-consistency failures remain invalid even if both cached scores
-    # happen to be finite; do not silently rehabilitate historical exceptions.
     failed = bool(record.get('failed'))
     incompatible = record.get('stop_reason') == 'input_incompatible'
     valid = bv and av and not failed and not incompatible

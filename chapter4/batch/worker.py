@@ -133,8 +133,6 @@ def run(name,phase):
                     candidate_evals=result['candidate_evaluations_total']
                     rechecks=sum(r['candidate_rechecks'] for r in result['steps']);first=result['first_success']
                     if phase=='preflight' and not result['steps']:
-                        # Real-gradient health probe only when valid native step-0
-                        # stopping correctly avoids every optimization step.
                         with adapter.role('preflight_probe'):
                             found,diag=propose(adapter,sample,initial_suffix_text,'up',128,256,
                                 42+sample['source_row_index']*100003,False)

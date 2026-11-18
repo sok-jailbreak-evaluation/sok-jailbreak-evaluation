@@ -81,7 +81,6 @@ def main():
             'base_seed':42,'first_proposal_seed':42+index*100003,
             'candidate_seed_formula':'42 + search_seed_index*100003 + zero_based_step*1009; evaluator_index=0',
             'input_pair_id':digest({'prompt':x['prompt'],'response':x['response'],'context':x.get('context','')})})
-    # Preserve the exact bytes and order of the original queue as the first300.
     combined=old_path.read_bytes()+as_jsonl(added).encode()
     files={'unharmful_up.jsonl':combined,'original_300.jsonl':old_path.read_bytes(),
            'new_319.jsonl':as_jsonl(added).encode(),'mapping.jsonl':as_jsonl(mapping).encode()}

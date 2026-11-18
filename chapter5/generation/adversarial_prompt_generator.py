@@ -98,7 +98,6 @@ def main():
     print(f"{combined_prompt}\n")
     print("-" * 40 + "\n")
     
-    # Choose puzzle type based on argument
     puzzle = MappingPtlp()
     encoded = puzzle.encode(combined_prompt)
     print(f"{puzzle.prefix}\n")

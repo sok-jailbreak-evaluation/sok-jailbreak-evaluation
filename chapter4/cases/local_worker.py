@@ -127,8 +127,6 @@ def run_model(name,output,phase,run_key):
         write(path,row)
         function_cases+=context_hit(rows)
         if phase=='full' and function_cases>=3:break
-    # One fast causal guard supplies 2B. SR/HarmBench functional tests are separate
-    # evaluator instances; this round does not multiply expensive search matrices.
     if name not in ('llamaguard','harmaug'):
         hook.remove();del adapter,raw;gc.collect();torch.cuda.empty_cache();return
     cases=0

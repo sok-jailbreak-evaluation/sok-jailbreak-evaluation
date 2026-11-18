@@ -76,7 +76,6 @@ def main():
     payload={'updated_unix':time.time(),'complete_all_records':complete,'sample_count':len(source),'datasets':dict(ds_counts),
              'jobs':summaries,'lanes':lanes,'manual_review':'inherited, no new full review'}
     write(OUT/'summary.json',payload);write(OUT/'failure_list.json',failures);write(OUT/'reuse_provenance.json',provenance)
-    # Full text and native outputs are kept in this machine-readable export.
     temp=OUT/'all_records.jsonl.tmp'
     with temp.open('w') as f:
         for x in all_rows:f.write(json.dumps(x,ensure_ascii=False,allow_nan=False)+'\n')

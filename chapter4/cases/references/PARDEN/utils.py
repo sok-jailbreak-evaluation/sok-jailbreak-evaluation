@@ -45,11 +45,6 @@ def generate_mini_batch(model, tokenizer, templated_text, num_samples = 1, prefi
         top_p=top_p,
         top_k=top_k,
         temperature=1,
-        # num_beams = 5,
-        # repetition_penalty=repetition_penalty,
-        # num_beams=num_beams,
-        # no_repeat_ngram_size=no_repeat_ngram_size,
-        # early_stopping=early_stopping,
         max_new_tokens = 100,
         use_cache=True,
         num_return_sequences=num_samples,
@@ -78,7 +73,6 @@ def templatize_for_repeat(text_list, repeat_prefix = "Here's some text in bracke
     
 
     
-    # custom_suffixes = [get_first_k_words(text) for text in text_list]
     if LLM == 'llama':
         return templatize(text_list, prefix = repeat_prefix + in_context_examples, suffix = repeat_suffix + in_context_examples, custom_suffixes = None, use_sys_msg = use_sys_msg)
     elif LLM == 'mistral':
@@ -104,7 +98,6 @@ def get_windowed_bleu(ref, pred, window_size = [30,40,50,60,70,80,90,100], clip 
         pred = pred.replace('/n', '')
         num_words = min(len(ref.split(" ")), len(pred.split(" ")))
         effective_window_size = [min(w, num_words) for w in window_size]
-        # print(effective_window_size)
     else:
         effective_window_size = window_size
     
